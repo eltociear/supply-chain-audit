@@ -94,6 +94,50 @@ Ecosystem names also accept the repo name and aliases (`cargo`, `go`, `composer`
 | 1 | nothing reached `--fail-on`, but there was a usage error, nothing was recognised, or any scanner returned an error (fail-closed, also with `--fail-on none`) |
 | 0 | nothing reached `--fail-on` and every scanner completed |
 
+## Use in GitHub Actions
+
+`action.yml` at the repository root is a composite action (no Docker): it sets up Python
+(without touching the job's own Python), runs `sca scan --sarif`, uploads the SARIF to code
+scanning, and fails the step when something reaches `fail-on`.
+
+```yaml
+name: supply-chain-audit
+on: [push, pull_request]
+permissions:
+  contents: read
+  security-events: write   # for the SARIF upload; without it the upload is skipped with a warning
+jobs:
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: eltociear/supply-chain-audit@v0.2.0   # placeholder: pin a full commit SHA, see below
+        with:
+          path: .
+          fail-on: high
+```
+
+| Input | Default | Meaning |
+|---|---|---|
+| `path` | `.` | directory or file to scan |
+| `fail-on` | `high` | `low` / `medium` / `high` / `critical` / `none` |
+| `sarif-file` | `sca.sarif` | where the SARIF report is written |
+| `deps` | `false` | `true` adds `--deps` (lockfiles against the registries, referenced actions fetched; network) |
+| `extra-args` | | more `sca scan` arguments, split on whitespace (`--skip repo-trust -j 3`) |
+| `upload-sarif` | `true` | upload to code scanning (`continue-on-error`, so a token without `security-events: write`, e.g. on fork PRs, only warns) |
+| `python-version` | `3.12` | Python that runs sca (3.9+) |
+
+Outputs: `exit-code` (0 / 1 / 2 as in [Exit codes](#exit-codes)), `max-severity` (SAFE ... CRITICAL,
+ERROR, NONE), `sarif-file`. Use `continue-on-error: true` on the step and read
+`steps.<id>.outputs.exit-code` if you want to gate on it yourself.
+
+**Pin a SHA.** `@v0.2.0` above is a placeholder until a release is tagged; tags can be moved, and
+a supply-chain scanner is exactly the kind of step an attacker would like to swap. Pin the full
+commit (`uses: eltociear/supply-chain-audit@<40-hex-sha> # v0.2.0`; `gh api
+repos/eltociear/supply-chain-audit/commits/v0.2.0 --jq .sha` once the tag exists). Every action
+this one uses is itself pinned by SHA. [`action-selftest.yml`](.github/workflows/action-selftest.yml)
+runs it on a benign fixture (must pass) and an inert canary (must fail with exit 2) on every push.
+
 ## What `sca scan` detects
 
 | Ecosystem | Marker(s) | Target handed to the scanner |

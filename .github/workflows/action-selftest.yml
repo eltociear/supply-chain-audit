@@ -1,0 +1,103 @@
+name: Action self-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only on purpose: the upload-sarif step must degrade to a warning without
+# security-events: write, and no canary findings may land in code scanning.
+permissions:
+  contents: read
+
+concurrency:
+  group: action-selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benign:
+    name: Benign fixture passes / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run the action on a benign fixture
+        id: sca
+        uses: ./
+        with:
+          path: tests/fixtures/detect/monorepo
+          sarif-file: benign.sarif
+          python-version: "3.9"
+
+      - name: Assert success
+        shell: bash
+        env:
+          RC: ${{ steps.sca.outputs.exit-code }}
+          SEV: ${{ steps.sca.outputs.max-severity }}
+        run: |
+          echo "exit-code=$RC max-severity=$SEV"
+          test "$RC" = "0"
+          test "$SEV" = "SAFE"
+          python -c "import json; d = json.load(open('benign.sarif')); assert d['version'] == '2.1.0' and d['runs'], d.keys(); print(len(d['runs']), 'runs')"
+
+  canary:
+    name: Canary fixture fails with exit 2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run the action on an inert npm canary (expected to fail)
+        id: sca
+        continue-on-error: true
+        uses: ./
+        with:
+          path: scanners/npm-audit/tests/fixtures/mal-curl-sh
+          sarif-file: canary.sarif
+          extra-args: --only npm
+
+      - name: Assert the step failed with exit 2 and a HIGH+ SARIF
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.sca.outcome }}
+          RC: ${{ steps.sca.outputs.exit-code }}
+          SEV: ${{ steps.sca.outputs.max-severity }}
+        run: |
+          echo "outcome=$OUTCOME exit-code=$RC max-severity=$SEV"
+          test "$OUTCOME" = "failure"
+          test "$RC" = "2"
+          case "$SEV" in HIGH|CRITICAL) ;; *) echo "expected HIGH+, got $SEV"; exit 1 ;; esac
+          python3 -c "import json; d = json.load(open('canary.sarif')); n = sum(len(r['results']) for r in d['runs']); assert n > 0; print(n, 'SARIF results')"
+
+  fail-on-none:
+    name: fail-on none reports but passes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run the action on the canary with fail-on none
+        id: sca
+        uses: ./
+        with:
+          path: scanners/npm-audit/tests/fixtures/mal-curl-sh
+          fail-on: none
+          upload-sarif: "false"
+          extra-args: --only npm
+
+      - name: Assert exit 0 with the finding still reported
+        shell: bash
+        env:
+          RC: ${{ steps.sca.outputs.exit-code }}
+          SEV: ${{ steps.sca.outputs.max-severity }}
+        run: |
+          test "$RC" = "0"
+          case "$SEV" in HIGH|CRITICAL) ;; *) echo "expected HIGH+, got $SEV"; exit 1 ;; esac

@@ -1,0 +1,122 @@
+name: supply-chain-audit (sca)
+description: >-
+  Static supply-chain malware scan of a checkout with 24 zero-dependency scanners (npm, PyPI,
+  crates, Go, gems, Composer, GitHub Actions, VS Code, browser extensions, MCP, ...). Writes
+  SARIF, optionally uploads it to code scanning, and fails the job at a severity threshold.
+author: eltociear
+branding:
+  icon: shield
+  color: orange
+
+inputs:
+  path:
+    description: Directory or file to scan (relative to the workspace).
+    required: false
+    default: "."
+  fail-on:
+    description: Fail the step (exit 2) if anything reaches this level - low, medium, high, critical or none.
+    required: false
+    default: high
+  sarif-file:
+    description: Where to write the SARIF 2.1.0 report (relative to the workspace).
+    required: false
+    default: sca.sarif
+  deps:
+    description: "'true' to also resolve lockfiles / manifests against the registries and fetch referenced actions (network)."
+    required: false
+    default: "false"
+  extra-args:
+    description: Extra arguments for `sca scan`, split on whitespace (e.g. `--skip repo-trust -j 3`).
+    required: false
+    default: ""
+  upload-sarif:
+    description: >-
+      'true' to upload the SARIF to GitHub code scanning (needs `security-events: write`; without
+      it the upload is skipped with a warning and the scan result still decides the step).
+    required: false
+    default: "true"
+  python-version:
+    description: Python used to run sca (3.9 or newer).
+    required: false
+    default: "3.12"
+
+outputs:
+  exit-code:
+    description: "sca's exit code: 0 clean, 1 error / nothing recognised (fail-closed), 2 something reached fail-on."
+    value: ${{ steps.scan.outputs.exit-code }}
+  max-severity:
+    description: Highest severity over all scanned targets (SAFE, LOW, MEDIUM, HIGH, CRITICAL; ERROR if every target errored; NONE if nothing was scanned).
+    value: ${{ steps.scan.outputs.max-severity }}
+  sarif-file:
+    description: Path of the SARIF report.
+    value: ${{ inputs.sarif-file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python for sca
+      id: py
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        update-environment: false
+
+    - name: Run sca scan
+      id: scan
+      shell: bash
+      env:
+        SCA_PY: ${{ steps.py.outputs.python-path }}
+        SCA_HOME: ${{ github.action_path }}
+        SCA_PATH: ${{ inputs.path }}
+        SCA_FAIL_ON: ${{ inputs.fail-on }}
+        SCA_SARIF: ${{ inputs.sarif-file }}
+        SCA_DEPS: ${{ inputs.deps }}
+        SCA_EXTRA: ${{ inputs.extra-args }}
+      run: |
+        set -u
+        args=(scan "$SCA_PATH" --sarif -o "$SCA_SARIF" --fail-on "$SCA_FAIL_ON")
+        if [ "$SCA_DEPS" = "true" ]; then args+=(--deps); fi
+        if [ -n "$SCA_EXTRA" ]; then
+          read -r -a extra <<< "$SCA_EXTRA"
+          args+=("${extra[@]}")
+        fi
+        set +e
+        "$SCA_PY" "$SCA_HOME/sca.py" "${args[@]}"
+        rc=$?
+        set -e
+        sev=$("$SCA_PY" -I - "$SCA_SARIF" <<'PY'
+        import json, sys
+        rank = {"SAFE": 0, "NONE": 0, "INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+        try:
+            runs = json.load(open(sys.argv[1], encoding="utf-8")).get("runs", [])
+        except (OSError, ValueError):
+            runs = []
+        sevs = [t.get("max_severity") for r in runs for t in r.get("properties", {}).get("targets", [])]
+        ok = [s for s in sevs if s in rank]
+        print(max(ok, key=rank.get) if ok else ("ERROR" if sevs else "NONE"))
+        PY
+        )
+        echo "exit-code=$rc" >> "$GITHUB_OUTPUT"
+        echo "max-severity=$sev" >> "$GITHUB_OUTPUT"
+        if [ -s "$SCA_SARIF" ]; then echo "sarif-written=true" >> "$GITHUB_OUTPUT"; fi
+        echo "sca: exit code $rc, max severity $sev, SARIF in $SCA_SARIF"
+
+    - name: Upload SARIF to code scanning
+      if: ${{ inputs.upload-sarif == 'true' && steps.scan.outputs.sarif-written == 'true' }}
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+
+    - name: Apply the sca exit code
+      shell: bash
+      env:
+        RC: ${{ steps.scan.outputs.exit-code }}
+        SEV: ${{ steps.scan.outputs.max-severity }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        case "$RC" in
+          0) echo "sca: nothing reached --fail-on $FAIL_ON" ;;
+          2) echo "::error title=supply-chain-audit::a finding reached --fail-on $FAIL_ON (max severity $SEV); see the SARIF / code scanning alerts"; exit 2 ;;
+          *) echo "::error title=supply-chain-audit::sca exited $RC (usage error, nothing recognised, or a scanner failed - fail-closed)"; exit "$RC" ;;
+        esac
