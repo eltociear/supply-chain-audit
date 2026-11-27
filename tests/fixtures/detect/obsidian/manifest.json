@@ -1,0 +1,6 @@
+{
+ "id": "demo-plugin",
+ "name": "Demo",
+ "version": "1.0.0",
+ "minAppVersion": "1.4.0"
+}

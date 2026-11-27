@@ -1,0 +1,9 @@
+{
+ "name": "demo/lib",
+ "type": "library",
+ "autoload": {
+  "psr-4": {
+   "Demo\\": "src/"
+  }
+ }
+}

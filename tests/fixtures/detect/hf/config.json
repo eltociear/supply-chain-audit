@@ -1,0 +1,7 @@
+{
+ "model_type": "demo",
+ "auto_map": {
+  "AutoModel": "modeling_demo.DemoModel",
+  "AutoConfig": "configuration_demo.DemoConfig"
+ }
+}

@@ -1,0 +1,85 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/eltociear/supply-chain-audit/blob/main/schema/sca-report.schema.json",
+ "title": "supply-chain-audit report (schema_version 1)",
+ "description": "One normalised report over any of the eltociear/*-audit scanners. Produced by `sca ... --json`.",
+ "type": "object",
+ "required": ["schema_version", "sca_version", "generated", "mode", "root", "summary", "results"],
+ "properties": {
+  "$schema": {"type": "string"},
+  "schema_version": {"const": 1},
+  "sca_version": {"type": "string"},
+  "generated": {"type": "string", "description": "UTC, ISO 8601"},
+  "mode": {"enum": ["scan", "single"], "description": "scan = auto-detected; single = `sca <ecosystem> ...`"},
+  "root": {"type": "string", "description": "what was given on the command line"},
+  "summary": {
+   "type": "object",
+   "required": ["results", "by_verdict", "max_severity", "fail_on", "failed", "errors", "ecosystems"],
+   "properties": {
+    "results": {"type": "integer"},
+    "by_verdict": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "max_severity": {"$ref": "#/$defs/level"},
+    "fail_on": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL", "NONE"]},
+    "failed": {"type": "boolean", "description": "true when max_severity >= fail_on (exit code 2)"},
+    "errors": {"type": "integer"},
+    "ecosystems": {"type": "array", "items": {"type": "string"}}
+   }
+  },
+  "detected": {
+   "type": "array",
+   "description": "scan mode only: every (ecosystem, target) the auto-detection planned",
+   "items": {"type": "object", "required": ["ecosystem", "target", "reason", "network"],
+             "properties": {"ecosystem": {"type": "string"}, "target": {"type": "string"},
+                            "reason": {"type": "string"}, "network": {"type": "boolean"}}}
+  },
+  "skipped": {
+   "type": "array",
+   "description": "dependency manifests found but not resolved (they need --deps / network)",
+   "items": {"type": "object", "required": ["ecosystem", "target", "reason"]}
+  },
+  "results": {"type": "array", "items": {"$ref": "#/$defs/result"}}
+ },
+ "$defs": {
+  "level": {"enum": ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+  "severity": {"enum": ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+  "result": {
+   "type": "object",
+   "required": ["tool", "tool_commit", "ecosystem", "target", "verdict", "max_severity", "risk_score", "findings", "info_count", "error"],
+   "properties": {
+    "tool": {"type": "string", "description": "scanner repo name, e.g. npm-audit"},
+    "tool_commit": {"type": ["string", "null"], "description": "vendored upstream commit (scanners/VERSIONS.json)"},
+    "ecosystem": {"type": "string", "description": "sca ecosystem key (see `sca list`)"},
+    "target": {"type": "string", "description": "as the scanner reports it (path, package spec or <text>)"},
+    "verdict": {"enum": ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL", "ERROR"],
+                "description": "the scanner's own risk_level; ERROR when it could not scan the target"},
+    "max_severity": {"$ref": "#/$defs/level",
+                     "description": "max(verdict, every finding's severity) - the value --fail-on gates on"},
+    "risk_score": {"type": "number"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "info_count": {"type": "integer", "description": "INFO-tier context the scanner recorded but does not score"},
+    "summary": {"type": ["string", "null"]},
+    "error": {"type": ["string", "null"]},
+    "command": {"type": "array", "items": {"type": "string"}},
+    "seconds": {"type": "number"},
+    "scanner_exit_code": {"type": "integer"},
+    "detected_by": {"type": "string"},
+    "stderr": {"type": "string"}
+   }
+  },
+  "finding": {
+   "type": "object",
+   "required": ["severity", "rule", "file", "line", "message", "context"],
+   "properties": {
+    "severity": {"$ref": "#/$defs/severity"},
+    "rule": {"type": "string", "description": "the scanner's pattern id, e.g. download_execute"},
+    "name": {"type": "string"},
+    "file": {"type": ["string", "null"], "description": "path inside the target as the scanner reports it (may carry a prefix such as sdist: or a #fragment such as package.json#scripts.preinstall)"},
+    "line": {"type": ["integer", "null"], "minimum": 1, "description": "null for file-level / combination findings"},
+    "message": {"type": "string", "description": "name: description"},
+    "context": {"type": ["string", "null"], "description": "the source line (clipped to 300 chars)"},
+    "matched": {"type": ["string", "null"]},
+    "extra": {"type": "object", "description": "scanner-specific scalar fields (runs_at, context_kind, when, ...)"}
+   }
+  }
+ }
+}

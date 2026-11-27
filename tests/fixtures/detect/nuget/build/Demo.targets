@@ -1,0 +1,1 @@
+<Project><Target Name="DemoHello"><Message Text="hello" /></Target></Project>

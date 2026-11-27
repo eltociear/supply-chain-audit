@@ -1,0 +1,7 @@
+{
+ "domain": "demo2",
+ "name": "Demo2",
+ "version": "1.0.0",
+ "iot_class": "cloud_polling",
+ "requirements": []
+}

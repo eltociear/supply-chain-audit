@@ -1,0 +1,8 @@
+pkgname=demo
+pkgver=1.0
+pkgrel=1
+arch=(any)
+source=()
+package() {
+  install -d "$pkgdir/usr/share/demo"
+}

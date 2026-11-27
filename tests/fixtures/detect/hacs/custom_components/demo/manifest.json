@@ -1,0 +1,7 @@
+{
+ "domain": "demo",
+ "name": "Demo",
+ "version": "1.0.0",
+ "codeowners": [],
+ "iot_class": "local_polling"
+}
