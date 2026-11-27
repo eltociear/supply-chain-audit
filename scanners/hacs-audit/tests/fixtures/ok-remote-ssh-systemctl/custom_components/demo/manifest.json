@@ -1,0 +1,1 @@
+{"domain": "demo", "name": "Demo", "version": "1.0.0", "requirements": ["scapy>=2.6", "Authlib==1.2.1"]}

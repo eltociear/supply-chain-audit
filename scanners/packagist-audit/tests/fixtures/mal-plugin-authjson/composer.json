@@ -1,0 +1,2 @@
+{"name": "canary/plugin-authjson", "type": "composer-plugin",
+ "autoload": {"psr-4": {"Canary\\Auth\\": "src/"}}, "extra": {"class": "Canary\\Auth\\Plugin"}}

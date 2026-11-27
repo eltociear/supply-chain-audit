@@ -1,0 +1,34 @@
+# Maintainer: Someone <someone at example dot org>
+pkgname=example-app-bin
+_pkgname=example-app
+pkgver=2.4.1
+pkgrel=1
+pkgdesc="An Electron app (binary release). See https://example-app.org for docs"
+arch=('x86_64' 'aarch64')
+url="https://github.com/example-org/example-app"
+license=('MIT')
+depends=('gtk3' 'nss' 'alsa-lib')
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+install=$pkgname.install
+source=("LICENSE::https://raw.githubusercontent.com/example-org/example-app/v$pkgver/LICENSE"
+        "$_pkgname.desktop")
+source_x86_64=("$url/releases/download/v$pkgver/$_pkgname-$pkgver-linux-x64.tar.gz")
+source_aarch64=("$url/releases/download/v$pkgver/$_pkgname-$pkgver-linux-arm64.tar.gz")
+sha256sums=('1111111111111111111111111111111111111111111111111111111111111111'
+            '2222222222222222222222222222222222222222222222222222222222222222')
+sha256sums_x86_64=('3333333333333333333333333333333333333333333333333333333333333333')
+sha256sums_aarch64=('4444444444444444444444444444444444444444444444444444444444444444')
+
+package() {
+  install -d "$pkgdir/opt/$_pkgname" "$pkgdir/usr/bin"
+  cp -a "$_pkgname-$pkgver"/* "$pkgdir/opt/$_pkgname/"
+  chmod 4755 "$pkgdir/opt/$_pkgname/chrome-sandbox"
+  cat > "$pkgdir/usr/bin/$_pkgname" <<EOF
+#!/bin/sh
+exec /opt/$_pkgname/$_pkgname "\$@"
+EOF
+  chmod +x "$pkgdir/usr/bin/$_pkgname"
+  install -Dm644 "$_pkgname.desktop" -t "$pkgdir/usr/share/applications"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+}

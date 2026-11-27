@@ -1,0 +1,8 @@
+<Project>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == ''">
+    <None Include="$(MSBuildThisFileDirectory)..\runtimes\win-x64\native\*.dll" CopyToOutputDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+  <Target Name="CopyNativeLibs" AfterTargets="Build">
+    <Copy SourceFiles="@(NativeLib)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

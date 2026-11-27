@@ -1,0 +1,1 @@
+{"name": "ok/docblock", "autoload": {"psr-4": {"Ok\\Doc\\": "src/"}}}

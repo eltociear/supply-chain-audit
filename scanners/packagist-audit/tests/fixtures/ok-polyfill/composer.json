@@ -1,0 +1,1 @@
+{"name": "ok/polyfill-x", "autoload": {"files": ["bootstrap.php"], "classmap": ["Resources/stubs"]}}

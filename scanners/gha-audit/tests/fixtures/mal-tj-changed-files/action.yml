@@ -1,0 +1,5 @@
+name: Changed Files
+description: inert reconstruction of the 2025 compromise shape
+runs:
+  using: node20
+  main: dist/index.js

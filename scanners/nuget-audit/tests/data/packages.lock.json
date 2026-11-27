@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "Serilog": {"type": "Direct", "requested": "[3.1.1, )", "resolved": "3.1.1", "contentHash": "x"},
+      "System.Memory": {"type": "Transitive", "resolved": "4.5.5", "contentHash": "y"},
+      "MyLib": {"type": "Project"}
+    }
+  }
+}

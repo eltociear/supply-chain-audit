@@ -1,0 +1,6 @@
+<Project>
+  <Target Name="DownloadDriver" BeforeTargets="Build" Condition="'$(DownloadBrowserDriver)' == 'true'">
+    <DownloadFile SourceUrl="https://downloads.example.invalid/driver-$(DriverVersion).zip" DestinationFolder="$(IntermediateOutputPath)" />
+    <Unzip SourceFiles="$(IntermediateOutputPath)driver-$(DriverVersion).zip" DestinationFolder="$(OutDir)" />
+  </Target>
+</Project>

@@ -1,0 +1,1 @@
+{"name": "ok/http-client", "autoload": {"psr-4": {"Ok\\Http\\": "src/"}, "files": ["src/functions.php"]}}

@@ -1,0 +1,1 @@
+{"name": "ok/tests-ignored", "autoload": {"psr-4": {"Ok\\T\\": "src/"}}}

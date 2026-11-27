@@ -1,0 +1,1 @@
+command! Ok echo "ok"

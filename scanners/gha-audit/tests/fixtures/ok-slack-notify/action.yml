@@ -1,0 +1,7 @@
+name: Slack Notify
+inputs:
+  webhook-url:
+    required: true
+runs:
+  using: node20
+  main: dist/index.js

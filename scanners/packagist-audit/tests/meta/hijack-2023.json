@@ -1,0 +1,13 @@
+{"minified": "composer/2.0", "packages": {"canary/abandoned-lib": [
+ {"name": "canary/abandoned-lib", "description": "Pwned by a canary", "version": "2.0.1", "version_normalized": "2.0.1.0",
+  "source": {"url": "https://github.com/canary-attacker/abandoned-lib.git", "type": "git", "reference": "bbbb"},
+  "dist": {"url": "https://api.github.com/repos/canary-attacker/abandoned-lib/zipball/bbbb", "type": "zip", "reference": "bbbb"},
+  "time": "2023-05-01T10:00:00+00:00", "type": "library", "abandoned": true},
+ {"version": "2.0.0", "version_normalized": "2.0.0.0", "description": "A small library",
+  "source": {"url": "https://github.com/original-author/abandoned-lib.git", "type": "git", "reference": "aaaa"},
+  "dist": {"url": "https://api.github.com/repos/original-author/abandoned-lib/zipball/aaaa", "type": "zip", "reference": "aaaa"},
+  "time": "2016-03-01T10:00:00+00:00"},
+ {"version": "1.0.0", "version_normalized": "1.0.0.0", "time": "2015-01-01T10:00:00+00:00",
+  "source": {"url": "https://github.com/original-author/abandoned-lib.git", "type": "git", "reference": "9999"},
+  "dist": {"url": "https://api.github.com/repos/original-author/abandoned-lib/zipball/9999", "type": "zip", "reference": "9999"}}
+]}}

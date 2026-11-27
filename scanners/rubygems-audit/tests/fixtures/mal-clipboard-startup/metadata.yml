@@ -1,0 +1,8 @@
+--- !ruby/object:Gem::Specification
+name: clipboard-canary
+version: !ruby/object:Gem::Version
+  version: 0.1.0
+extensions:
+- ext/extconf.rb
+require_paths:
+- lib

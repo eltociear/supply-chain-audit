@@ -1,0 +1,3 @@
+pillow
+openai @ https://github.com/attacker-example/openai/releases/download/v1.16.2/openai-1.16.2-py3-none-any.whl
+anthropic @ https://github.com/attacker-example/anthropic/releases/download/v0.26.1/anthropic-0.26.1-py3-none-any.whl

@@ -1,0 +1,6 @@
+<script type="text/javascript">
+  RED.nodes.registerType('okx', { category: 'function', color: '#a6bbcf', defaults: { name: { value: '' } },
+    credentials: { apiKey: { type: 'password' } }, inputs: 1, outputs: 1, label: function () { return this.name || 'okx'; } });
+  $.getJSON('okx/models', function (data) { /* populate dropdown */ });
+</script>
+<script type="text/html" data-template-name="okx"><input type="password" id="node-input-apiKey"></script>

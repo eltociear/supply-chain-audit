@@ -1,0 +1,6 @@
+--- !ruby/object:Gem::Specification
+name: curl-canary
+version: !ruby/object:Gem::Version
+  version: 1.0.0
+extensions:
+- ext/curl_canary/extconf.rb

@@ -1,0 +1,11 @@
+name: Setup tool
+description: composite action whose install.sh carries an encoded payload
+inputs:
+  version:
+    default: latest
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        "${{ github.action_path }}/install.sh" "${{ inputs.version }}"

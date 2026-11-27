@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=Example App
+Exec=example-app %U
+Type=Application

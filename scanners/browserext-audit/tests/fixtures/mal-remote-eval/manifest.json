@@ -1,0 +1,8 @@
+{
+ "manifest_version": 3,
+ "name": "mal-remote-eval",
+ "version": "1.0.0",
+ "background": {
+  "service_worker": "bg.js"
+ }
+}

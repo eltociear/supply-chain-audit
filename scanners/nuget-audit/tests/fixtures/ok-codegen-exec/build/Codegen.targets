@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <ProtocPath>$(MSBuildThisFileDirectory)..\tools\protoc.exe</ProtocPath>
+  </PropertyGroup>
+  <Target Name="GenerateProtos" BeforeTargets="CoreCompile" Inputs="@(Protobuf)" Outputs="$(IntermediateOutputPath)%(Protobuf.Filename).cs">
+    <Exec Command="&quot;$(ProtocPath)&quot; --csharp_out=&quot;$(IntermediateOutputPath)&quot; @(Protobuf->'%(FullPath)', ' ')" />
+    <ItemGroup><Compile Include="$(IntermediateOutputPath)*.cs" /></ItemGroup>
+  </Target>
+</Project>

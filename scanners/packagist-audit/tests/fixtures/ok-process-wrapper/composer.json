@@ -1,0 +1,1 @@
+{"name": "ok/process", "autoload": {"psr-4": {"Ok\\Process\\": "src/"}}}

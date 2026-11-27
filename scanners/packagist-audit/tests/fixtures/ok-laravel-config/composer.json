@@ -1,0 +1,2 @@
+{"name": "ok/laravel-pkg", "autoload": {"psr-4": {"Ok\\Lp\\": "src/"}, "files": ["src/helpers.php"]},
+ "extra": {"laravel": {"providers": ["Ok\\Lp\\LpServiceProvider"]}}}

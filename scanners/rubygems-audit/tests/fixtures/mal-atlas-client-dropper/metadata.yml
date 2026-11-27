@@ -1,0 +1,11 @@
+--- !ruby/object:Gem::Specification
+name: atlas-client
+version: !ruby/object:Gem::Version
+  version: 0.0.1
+platform: ruby
+bindir: bin
+executables: []
+extensions:
+- ext/trellislike/unflaming/waffling/extconf.rb
+require_paths:
+- lib

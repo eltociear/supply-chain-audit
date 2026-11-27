@@ -1,0 +1,1 @@
+function captureException(e){ const body = JSON.stringify({exception: String(e), cookies: document.cookie ? 'present' : 'none'}); fetch('https://o0.ingest.sentry.example.invalid/api/0/store/', {method: 'POST', body}); }

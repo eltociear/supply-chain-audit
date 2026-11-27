@@ -1,0 +1,4 @@
+name: Registry login
+runs:
+  using: docker
+  image: Dockerfile

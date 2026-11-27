@@ -1,0 +1,4 @@
+{
+  "files.exclude": {"**/.vscode": true},
+  "task.allowAutomaticTasks": "on"
+}

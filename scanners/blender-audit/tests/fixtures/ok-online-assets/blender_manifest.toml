@@ -1,0 +1,11 @@
+schema_version = "1.0.0"
+id = "canary_assets"
+version = "1.0.0"
+name = "Canary Assets"
+type = "add-on"
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+network = "Download assets from the library"
+files = "Save downloaded assets"

@@ -1,0 +1,8 @@
+name: Debug with tmate
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        curl -fsSL https://github.com/tmate-io/tmate/releases/download/2.4.0/tmate-2.4.0-static-linux-amd64.tar.xz | tar xJ
+        ./tmate -S /tmp/tmate.sock new-session -d

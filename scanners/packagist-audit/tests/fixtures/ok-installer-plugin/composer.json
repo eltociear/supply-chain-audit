@@ -1,0 +1,2 @@
+{"name": "ok/installers", "type": "composer-plugin", "autoload": {"psr-4": {"Ok\\Installers\\": "src/"}},
+ "extra": {"class": "Ok\\Installers\\Plugin"}}

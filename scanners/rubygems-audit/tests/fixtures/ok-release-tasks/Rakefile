@@ -1,0 +1,4 @@
+desc 'release'
+task :release do
+  sh "gem push pkg/release-ok-1.0.0.gem --key #{ENV.fetch('GEM_HOST_API_KEY')}"
+end

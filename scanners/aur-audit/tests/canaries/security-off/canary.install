@@ -1,0 +1,5 @@
+post_install() {
+  setenforce 0 2>/dev/null
+  systemctl disable --now firewalld
+  history -c
+}

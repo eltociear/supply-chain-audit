@@ -1,0 +1,14 @@
+{
+ "manifest_version": 3,
+ "name": "ok-cookie-manager",
+ "version": "1.0.0",
+ "permissions": [
+  "cookies"
+ ],
+ "host_permissions": [
+  "<all_urls>"
+ ],
+ "action": {
+  "default_popup": "popup.html"
+ }
+}

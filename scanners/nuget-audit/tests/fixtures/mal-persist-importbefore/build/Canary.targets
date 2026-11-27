@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="CanaryPersist" AfterTargets="Build">
+    <WriteLinesToFile File="$(MSBuildUserExtensionsPath)\Current\Microsoft.Common.props\ImportBefore\canary.props" Lines="&lt;Project /&gt;" Overwrite="true" />
+  </Target>
+</Project>

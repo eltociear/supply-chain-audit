@@ -1,0 +1,11 @@
+# Inert canary: the June 2026 injection shape (a package-manager install added to .install)
+pkgname=canary-tool
+pkgver=1.0
+pkgrel=2
+arch=('x86_64')
+url="https://example.invalid/canary-tool"
+license=('MIT')
+install=canary-tool.install
+source=("https://example.invalid/canary-tool-$pkgver.tar.gz")
+sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
+package() { install -Dm755 canary-tool "$pkgdir/usr/bin/canary-tool"; }

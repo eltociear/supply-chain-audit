@@ -1,0 +1,6 @@
+--- !ruby/object:Gem::Specification
+name: portile-ok
+version: !ruby/object:Gem::Version
+  version: 1.0.0
+extensions:
+- ext/portile_ok/extconf.rb

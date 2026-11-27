@@ -1,0 +1,6 @@
+name: Wait for db
+runs:
+  using: docker
+  image: Dockerfile
+  args:
+    - ${{ inputs.host }}

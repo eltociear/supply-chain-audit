@@ -1,0 +1,9 @@
+pkgname=canary-sudo
+pkgver=1
+pkgrel=1
+arch=('any')
+source=()
+build() { make; }
+package() {
+  sudo make install
+}

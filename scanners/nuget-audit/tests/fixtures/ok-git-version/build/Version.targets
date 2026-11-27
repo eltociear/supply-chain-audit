@@ -1,0 +1,7 @@
+<Project>
+  <Target Name="GetGitCommit" BeforeTargets="GenerateAssemblyInfo">
+    <Exec Command="git rev-parse HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="SourceRevisionId" />
+    </Exec>
+  </Target>
+</Project>

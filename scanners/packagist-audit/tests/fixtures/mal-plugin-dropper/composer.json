@@ -1,0 +1,3 @@
+{"name": "canary/plugin-dropper", "type": "composer-plugin",
+ "autoload": {"psr-4": {"Canary\\Dropper\\": "src/"}}, "extra": {"class": "Canary\\Dropper\\Plugin"},
+ "require": {"composer-plugin-api": "^2.0"}}

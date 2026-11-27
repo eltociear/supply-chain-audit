@@ -1,0 +1,5 @@
+name: Build helper
+runs:
+  using: docker
+  image: Dockerfile
+  post-entrypoint: /cleanup.sh

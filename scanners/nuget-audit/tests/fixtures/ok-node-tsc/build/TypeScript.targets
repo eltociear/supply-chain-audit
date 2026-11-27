@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="CompileTypeScript" BeforeTargets="CoreCompile" Condition="'@(TypeScriptCompile)' != ''">
+    <Exec Command="&quot;$(NodePath)&quot; &quot;$(MSBuildThisFileDirectory)..\tools\tsc.js&quot; --project &quot;$(MSBuildProjectDirectory)\tsconfig.json&quot;" />
+  </Target>
+</Project>

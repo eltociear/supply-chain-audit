@@ -1,0 +1,6 @@
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch
+opencv-python>=4.8
+git+https://github.com/facebookresearch/segment-anything.git
+insightface @ https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp311-cp311-win_amd64.whl
+ultralytics>=8.3.50

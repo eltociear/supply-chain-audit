@@ -1,0 +1,9 @@
+name: Label PR
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@v7
+      with:
+        script: |
+          const { data } = await github.rest.issues.addLabels({ ...context.repo, issue_number: context.issue.number, labels: ['x'] });
+          core.info(JSON.stringify(data));

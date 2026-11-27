@@ -1,0 +1,2 @@
+{"name": "canary/env-boot", "autoload": {"psr-4": {"Canary\\Env\\": "src/"}},
+ "extra": {"laravel": {"providers": ["Canary\\Env\\EnvServiceProvider"]}}}

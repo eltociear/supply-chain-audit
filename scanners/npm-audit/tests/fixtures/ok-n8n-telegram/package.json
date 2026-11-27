@@ -1,0 +1,1 @@
+{"name":"n8n-nodes-oktelegram","version":"1.0.0","keywords":["n8n-community-node-package"],"n8n":{"nodes":["dist/Tg.node.js"]}}

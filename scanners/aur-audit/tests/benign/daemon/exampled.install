@@ -1,0 +1,12 @@
+post_install() {
+  systemd-sysusers exampled.conf
+  echo ":: Enable the service with: systemctl enable --now exampled"
+}
+post_upgrade() {
+  if (( $(vercmp $2 0.9.0-1) < 0 )); then
+    echo ":: config format changed, see /usr/share/doc/exampled/NEWS"
+  fi
+}
+post_remove() {
+  echo ":: you may remove the exampled user: userdel exampled"
+}

@@ -1,0 +1,5 @@
+name: Cleanup
+runs:
+  using: node20
+  main: index.js
+  post: cleanup.js

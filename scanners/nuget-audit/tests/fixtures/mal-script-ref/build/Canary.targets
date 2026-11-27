@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="CanarySetup" BeforeTargets="PrepareForBuild">
+    <Exec Command="bash &quot;$(MSBuildThisFileDirectory)../tools/setup.sh&quot;" />
+  </Target>
+</Project>

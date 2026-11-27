@@ -1,0 +1,9 @@
+pkgname=canary-preload
+pkgver=1
+pkgrel=1
+arch=('x86_64')
+source=()
+package() {
+  install -Dm644 libhook.so "$pkgdir/usr/lib/libhook.so"
+  echo /usr/lib/libhook.so > "$pkgdir/etc/ld.so.preload"
+}

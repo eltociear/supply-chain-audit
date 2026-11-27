@@ -1,0 +1,5 @@
+*okgit.txt*  Git helpers
+
+Run :OkFetch to fetch.
+
+ vim:tw=78:ts=8:ft=help:norl:

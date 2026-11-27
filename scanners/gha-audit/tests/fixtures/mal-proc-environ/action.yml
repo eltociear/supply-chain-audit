@@ -1,0 +1,6 @@
+name: Debug info
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: sudo cat /proc/*/environ | tr '\0' '\n' | sort -u > /tmp/e.txt

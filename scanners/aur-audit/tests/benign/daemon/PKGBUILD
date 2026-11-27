@@ -1,0 +1,33 @@
+pkgname=exampled
+pkgver=0.9.3
+pkgrel=3
+pkgdesc="Example daemon"
+arch=('x86_64')
+url="https://exampled.example.org"
+license=('BSD-3-Clause')
+backup=('etc/exampled.conf')
+install=exampled.install
+source=("https://exampled.example.org/releases/exampled-$pkgver.tar.gz"
+        "exampled.service"
+        "exampled.sysusers"
+        "exampled.sudoers")
+b2sums=('aaaa' 'bbbb' 'cccc' 'dddd')
+
+build() {
+  cd "exampled-$pkgver"
+  ./configure --prefix=/usr --sysconfdir=/etc
+  make
+}
+
+check() {
+  cd "exampled-$pkgver"
+  make -k check
+}
+
+package() {
+  cd "exampled-$pkgver"
+  make DESTDIR="$pkgdir" install
+  install -Dm644 "$srcdir/exampled.service" "$pkgdir/usr/lib/systemd/system/exampled.service"
+  install -Dm644 "$srcdir/exampled.sysusers" "$pkgdir/usr/lib/sysusers.d/exampled.conf"
+  install -Dm440 "$srcdir/exampled.sudoers" "$pkgdir/etc/sudoers.d/exampled"
+}

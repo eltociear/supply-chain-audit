@@ -1,0 +1,6 @@
+name: Coverage upload
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: bash ${{ github.action_path }}/dist/uploader.sh

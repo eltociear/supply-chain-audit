@@ -1,0 +1,10 @@
+pkgname=canary-bun
+pkgver=2.1
+pkgrel=1
+arch=('any')
+url="https://example.invalid/canary-bun"
+license=('GPL3')
+install=canary-bun.install
+source=("https://example.invalid/canary-bun-$pkgver.tar.gz")
+b2sums=('00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
+package() { cp -r . "$pkgdir/opt/canary-bun"; }

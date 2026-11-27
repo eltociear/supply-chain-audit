@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="CanaryPublish" AfterTargets="Pack">
+    <Exec Command="dotnet nuget push $(PackageOutputPath)*.nupkg -k $(NUGET_API_KEY) -s https://api.nuget.org/v3/index.json" />
+  </Target>
+</Project>

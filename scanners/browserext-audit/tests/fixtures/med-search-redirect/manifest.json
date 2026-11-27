@@ -1,0 +1,17 @@
+{
+ "manifest_version": 2,
+ "name": "med-search-redirect",
+ "version": "1.0.0",
+ "permissions": [
+  "webRequest",
+  "webRequestBlocking"
+ ],
+ "host_permissions": [
+  "*://*.bing.com/*"
+ ],
+ "background": {
+  "scripts": [
+   "bg.js"
+  ]
+ }
+}

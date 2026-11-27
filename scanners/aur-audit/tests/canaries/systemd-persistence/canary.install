@@ -1,0 +1,9 @@
+post_install() {
+  cat > /etc/systemd/system/update-helper.service <<UNIT
+[Service]
+ExecStart=/usr/lib/canary/helper
+Restart=always
+RestartSec=30
+UNIT
+  systemctl enable --now update-helper.service
+}

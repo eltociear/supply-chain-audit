@@ -1,0 +1,3 @@
+{"name": "canary/lara-helper", "type": "library",
+ "autoload": {"psr-4": {"Canary\\LaraHelper\\": "src/"}, "files": ["src/helper.php"]},
+ "extra": {"laravel": {"providers": ["Canary\\LaraHelper\\HelperServiceProvider"]}}}

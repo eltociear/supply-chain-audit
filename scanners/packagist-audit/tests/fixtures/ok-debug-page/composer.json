@@ -1,0 +1,1 @@
+{"name": "ok/debug", "autoload": {"psr-4": {"Ok\\Debug\\": "src/"}}}

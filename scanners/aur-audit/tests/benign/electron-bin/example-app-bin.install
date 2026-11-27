@@ -1,0 +1,8 @@
+post_install() {
+  echo "==> see https://example-app.org/cli for the optional CLI helper"
+  update-desktop-database -q
+}
+post_upgrade() { post_install; }
+post_remove() {
+  rm -rf /opt/example-app
+}

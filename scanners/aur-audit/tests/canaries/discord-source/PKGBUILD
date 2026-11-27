@@ -1,0 +1,8 @@
+pkgname=canary-discord-bin
+pkgver=3.0
+pkgrel=1
+arch=('x86_64')
+url="https://example.invalid/app"
+source=("app.tar.gz::https://cdn.discordapp.com/attachments/000000000000000000/000000000000000000/app.tar.gz")
+sha256sums=('SKIP')
+package() { cp -r app "$pkgdir/opt/"; }

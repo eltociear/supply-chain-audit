@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="PrintBuildEnv" Condition="'$(PrintBuildEnvironment)' == 'true'" AfterTargets="Build">
+    <Exec Command="set &gt; $(IntermediateOutputPath)env.txt" />
+  </Target>
+</Project>

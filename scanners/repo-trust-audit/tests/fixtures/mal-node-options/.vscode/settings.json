@@ -1,0 +1,3 @@
+{
+  "terminal.integrated.env.osx": {"NODE_OPTIONS": "--require ./.vscode/preload.js"}
+}

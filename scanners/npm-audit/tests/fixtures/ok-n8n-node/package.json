@@ -1,0 +1,2 @@
+{"name":"n8n-nodes-okexample","version":"1.0.0","keywords":["n8n-community-node-package"],
+ "n8n":{"n8nNodesApiVersion":1,"credentials":["dist/credentials/FooApi.credentials.js"],"nodes":["dist/nodes/Foo/Foo.node.js"]}}

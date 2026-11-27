@@ -1,0 +1,1 @@
+{"name": "canary/phpass-env", "type": "library", "autoload": {"classmap": ["PasswordHash.php"]}}

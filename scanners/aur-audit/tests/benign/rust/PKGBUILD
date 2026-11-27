@@ -1,0 +1,22 @@
+pkgname=example-rs
+pkgver=1.2.0
+pkgrel=1
+arch=('x86_64')
+url="https://gitlab.com/example/example-rs"
+license=('MIT')
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz::$url/-/archive/v$pkgver/$pkgname-v$pkgver.tar.gz")
+sha512sums=('5555')
+prepare() {
+  cd "$pkgname-v$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+build() {
+  cd "$pkgname-v$pkgver"
+  cargo build --frozen --release --all-features
+}
+package() {
+  cd "$pkgname-v$pkgver"
+  install -Dm0755 -t "$pkgdir/usr/bin/" "target/release/$pkgname"
+}

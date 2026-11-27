@@ -1,0 +1,1 @@
+{"name": "canary/packed", "autoload": {"files": ["src/boot.php"]}}

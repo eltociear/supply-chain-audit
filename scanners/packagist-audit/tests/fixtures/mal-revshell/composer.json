@@ -1,0 +1,1 @@
+{"name": "canary/revshell", "autoload": {"psr-4": {"Canary\\Rs\\": "src/"}}}

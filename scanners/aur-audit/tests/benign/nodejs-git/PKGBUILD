@@ -1,0 +1,27 @@
+pkgname=example-cli-git
+pkgver=r120.abc1234
+pkgrel=1
+arch=('any')
+url="https://github.com/example-org/example-cli"
+license=('Apache-2.0')
+depends=('nodejs')
+makedepends=('git' 'npm')
+source=("git+https://github.com/example-org/example-cli.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd example-cli
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd example-cli
+  npm ci --cache "$srcdir/npm-cache"
+  npm run build
+}
+
+package() {
+  cd example-cli
+  npm install -g --prefix "$pkgdir/usr" --cache "$srcdir/npm-cache" "$(npm pack | tail -1)"
+  find "$pkgdir/usr" -type d -exec chmod 755 {} +
+}

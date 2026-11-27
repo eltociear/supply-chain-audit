@@ -1,0 +1,1 @@
+{"domain": "demo", "name": "Demo", "version": "1.0.0", "requirements": ["git+https://github.com/someone/pyvendor-fork.git@v1.2#pyvendor==1.2", "paho-mqtt>=1.6", "aiohttp"]}

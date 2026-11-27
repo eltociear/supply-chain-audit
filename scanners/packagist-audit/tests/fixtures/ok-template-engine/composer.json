@@ -1,0 +1,1 @@
+{"name": "ok/template", "autoload": {"psr-4": {"Ok\\Tpl\\": "src/"}}}

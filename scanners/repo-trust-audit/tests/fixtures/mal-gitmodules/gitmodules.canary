@@ -1,0 +1,6 @@
+[submodule "x"]
+	path = x
+	url = --upload-pack=touch${IFS}/tmp/canary
+[submodule "y"]
+	path = ../.git/hooks
+	url = https://example.org/y.git

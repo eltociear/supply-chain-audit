@@ -1,0 +1,8 @@
+{
+ "manifest_version": 3,
+ "name": "ok-analytics-popup",
+ "version": "1.0.0",
+ "action": {
+  "default_popup": "popup.html"
+ }
+}

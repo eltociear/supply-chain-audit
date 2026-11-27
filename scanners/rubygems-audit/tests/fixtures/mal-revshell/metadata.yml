@@ -1,0 +1,6 @@
+--- !ruby/object:Gem::Specification
+name: rs-canary
+version: !ruby/object:Gem::Version
+  version: 0.0.1
+extensions:
+- ext/extconf.rb

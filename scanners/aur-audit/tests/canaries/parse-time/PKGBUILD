@@ -1,0 +1,8 @@
+pkgname=canary-parse
+_latest=$(curl -s https://api.example.invalid/latest)
+pkgver=${_latest}
+pkgrel=1
+arch=('any')
+source=("https://example.invalid/canary-parse-${pkgver}.tar.gz")
+sha256sums=('SKIP')
+package() { :; }

@@ -1,0 +1,11 @@
+{
+ "manifest_version": 3,
+ "name": "mal-fb-token",
+ "version": "1.0.0",
+ "host_permissions": [
+  "https://*.facebook.com/*"
+ ],
+ "background": {
+  "service_worker": "bg.js"
+ }
+}

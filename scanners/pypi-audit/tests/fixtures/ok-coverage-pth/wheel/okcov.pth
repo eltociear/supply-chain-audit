@@ -1,0 +1,1 @@
+import os, sys;exec('if \'COV_CORE_SOURCE\' in os.environ:\n try:\n  from pytest_cov.embed import init\n  init()\n except Exception as exc:\n  sys.stderr.write(str(exc))\n')

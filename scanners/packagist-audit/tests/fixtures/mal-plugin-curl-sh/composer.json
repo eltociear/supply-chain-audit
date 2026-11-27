@@ -1,0 +1,2 @@
+{"name": "canary/plugin-curl-sh", "type": "composer-plugin",
+ "autoload": {"psr-4": {"Canary\\CurlSh\\": "src/"}}, "extra": {"class": "Canary\\CurlSh\\Plugin"}}

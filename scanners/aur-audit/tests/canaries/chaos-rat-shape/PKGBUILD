@@ -1,0 +1,9 @@
+# Inert canary: the July 2025 shape - a "-bin" browser package that builds from an unrelated git repo
+pkgname=browser-patched-bin
+pkgver=140.0
+pkgrel=1
+arch=('x86_64')
+url="https://www.mozilla.org/firefox/"
+source=("patch::git+https://github.com/someuser/browser-patch.git")
+sha256sums=('SKIP')
+package() { cd patch && ./install.sh "$pkgdir"; }

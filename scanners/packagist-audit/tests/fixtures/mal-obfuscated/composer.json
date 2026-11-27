@@ -1,0 +1,1 @@
+{"name": "canary/obf", "autoload": {"psr-4": {"Canary\\Obf\\": "src/"}}}
