@@ -1,582 +1,1091 @@
 {
- "generated": "2026-11-27",
+ "generated_by": "scripts/gen_stats.py",
+ "sources": "scripts/family_sources.json",
  "repos": [
   {
    "repo": "aur-audit",
+   "sca_ecosystem": "aur",
    "ecosystem": "AUR (Arch User Repository)",
    "runs_at": "PKGBUILD at makepkg; .install scriptlets + alpm hooks as root at pacman install",
    "calibration_n": 2000,
    "heldout_n": 1000,
-   "naive_flag_rate": "88 (8.8%) held-out / 278 (13.9%) cal (context-blind, HIGH+)",
    "heldout_highplus_count": 3,
-   "heldout_highplus_rate": "3 (0.3%)",
    "heldout_highplus_fp_count": 1,
-   "heldout_highplus_fp_rate": "1/1000 (0.1%)",
+   "heldout_highplus_rate": "3/1000 (0.30%)",
+   "heldout_highplus_fp_rate": "1/1000 (0.10%)",
+   "naive_flag_rate": "88 (8.8%) held-out / 278 (13.9%) cal (context-blind, HIGH+)",
+   "canaries_malicious": 17,
+   "canaries_benign": 5,
    "tests_count": 22,
-   "tests_how": "17 tests/canaries + 5 tests/benign; run_tests.py prints 27 PASS (incl. extra checks), 0 failed",
    "notable": [
     "0 CRITICAL across 3,300 packages, incl. a 300-package sample of the June 2026 campaign list (no live indicators)",
     "context-blind signatures flag 13.9% (cal) / 8.8% (held-out) HIGH+ vs 0.05% / 0.3% calibrated"
    ],
-   "commit": "710df9f5e08299b78bcfd791fa43ef947d39988c",
    "findings_date": "2026-11-25 (AUR metadata dump)",
    "source_notes": "FINDINGS.md ## Method + ## Headline. Held-out HIGH = 3 (blind) -> 2 after fix; only 1 of the 3 is labelled a real false positive (printf message); the other 2 are benign-intent real pattern matches. fp_rate computed (1/1000). Also a 300-pkg campaign sample, not counted in cal/held-out.",
-   "vendored_commit": "7ca7f7b0667374b26cdecfd0385b570eaf1b8c90",
-   "sca_ecosystem": "aur"
+   "docs_commit": "649d438ccd00244354e0343489654f8c83636e4a",
+   "docs_url": "https://github.com/eltociear/aur-audit/blob/649d438ccd00244354e0343489654f8c83636e4a/FINDINGS.md"
   },
   {
    "repo": "blender-audit",
+   "sca_ecosystem": "blender",
    "ecosystem": "Blender add-ons / extensions (+ .blend files)",
    "runs_at": "register()/module body at add-on enable, app handlers; Python embedded in .blend (Auto Run)",
    "calibration_n": 1130,
    "heldout_n": 613,
-   "naive_flag_rate": "130 (21.2%) held-out / 224 (19.8%) cal (no context rules, HIGH+)",
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1 (0.16%)",
    "heldout_highplus_fp_count": 1,
-   "heldout_highplus_fp_rate": "1 (0.16%)",
-   "tests_count": 35,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (19 mal, 2 med, 1 low, 1 unl, 12 ok); run.py prints 43 PASS",
+   "heldout_highplus_rate": "1/613 (0.16%)",
+   "heldout_highplus_fp_rate": "1/613 (0.16%)",
+   "naive_flag_rate": "130 (21.2%) held-out / 224 (19.8%) cal (no context rules, HIGH+)",
+   "canaries_malicious": 19,
+   "canaries_benign": 12,
+   "tests_count": 31,
    "notable": [
     "0 malicious add-ons in 1,743 (1,243 extensions.blender.org ids + 500 GitHub repos)",
     "~20% of add-ons trip HIGH+ with context-free signatures"
    ],
-   "commit": "cb18c8122f2bb660a1d52a17bbbf08483beab291",
    "findings_date": "2026-11-26 (platform snapshot)",
    "source_notes": "FINDINGS.md ## Method (split 1,130/613) + ## Headline. Held-out HIGH was a false positive (debugger add-on Popen shell=True loop); post-fix 0/613 is not blind.",
-   "vendored_commit": "cb18c8122f2bb660a1d52a17bbbf08483beab291",
-   "sca_ecosystem": "blender"
+   "docs_commit": "ff5c4afa1f981f6c2da1bc2d1805d072442c7222",
+   "docs_url": "https://github.com/eltociear/blender-audit/blob/ff5c4afa1f981f6c2da1bc2d1805d072442c7222/FINDINGS.md"
   },
   {
    "repo": "browserext-audit",
+   "sca_ecosystem": "browserext",
    "ecosystem": "Browser extensions (Chrome Web Store + Firefox AMO)",
    "runs_at": "background/content scripts on install and on every page load",
    "calibration_n": 896,
    "heldout_n": 698,
-   "naive_flag_rate": null,
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0/698",
+   "heldout_highplus_rate": "1/698 (0.14%)",
+   "heldout_highplus_fp_rate": "0/698 (0.00%)",
+   "naive_flag_rate": null,
+   "canaries_malicious": 16,
+   "canaries_benign": 9,
    "tests_count": 25,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (12 mal, 4 med, 9 ok); run.py prints 31 PASS",
    "notable": [
     "no theft/RCE shape in 1,594 popular extensions (1,000 AMO + 594 Chrome)",
     "14% of popular extensions hold the cookies + every-site permission pair",
     "first-draft rules gave 23 HIGH on calibration, 0 after tuning"
    ],
-   "commit": "a90470e49b7f06a52ee1aed8be5626b744d56e31",
    "findings_date": "2026-11-25/26",
    "source_notes": "FINDINGS.md ## Method + ## Headline. No context-blind baseline reported (only '23 with first-draft rules' on cal). The 1 held-out HIGH is stated as accurate, not an FP (undisclosed telemetry to a webhook), so fp_count=0. 14% figure from ## Takeaways.",
-   "vendored_commit": "a72d5e01757e6392d705e21505d8dbcbf50471cd",
-   "sca_ecosystem": "browserext"
+   "docs_commit": "c9ef8c57e7023001e4963cf021d7b2241e9f667c",
+   "docs_url": "https://github.com/eltociear/browserext-audit/blob/c9ef8c57e7023001e4963cf021d7b2241e9f667c/FINDINGS.md"
   },
   {
    "repo": "comfyui-audit",
+   "sca_ecosystem": "comfyui",
    "ecosystem": "ComfyUI custom nodes",
    "runs_at": "__init__.py / prestartup_script.py at ComfyUI startup; install.py + requirements at node install",
    "calibration_n": 999,
    "heldout_n": 497,
-   "naive_flag_rate": "2/497 held-out; 9/999 (0.9%) cal (context-blind CRITICAL/HIGH)",
    "heldout_highplus_count": 0,
-   "heldout_highplus_rate": "0",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0/497",
-   "tests_count": 26,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (17 mal, 1 med, 8 ok); run.py prints 28 PASS",
+   "heldout_highplus_rate": "0/497 (0.00%)",
+   "heldout_highplus_fp_rate": "0/497 (0.00%)",
+   "naive_flag_rate": "2/497 held-out; 9/999 (0.9%) cal (context-blind CRITICAL/HIGH)",
+   "canaries_malicious": 17,
+   "canaries_benign": 8,
+   "tests_count": 25,
    "notable": [
     "0 HIGH+ in 1,496 nodes (top 1,000 by stars + random 500)",
     "first draft flagged 5 of the first 51 nodes (9.8%) HIGH+, all false positives"
    ],
-   "commit": "d85b4c00c4f914ee051fae5e01bb97069bd20e14",
    "findings_date": "2026-11-25/26",
    "source_notes": "FINDINGS.md ## Method + ## Headline / ### How it got there. Sets were 1,000 and 500 selected; 999 and 497 downloaded/scanned (used here). Held-out naive rate string not given as % in doc (2/497).",
-   "vendored_commit": "0f7ddcdc5641414d3d4e4d9e7e48b943ac87588f",
-   "sca_ecosystem": "comfyui"
+   "docs_commit": "fca829744d2bd1b1f1e3051903f44576f0f7bcd4",
+   "docs_url": "https://github.com/eltociear/comfyui-audit/blob/fca829744d2bd1b1f1e3051903f44576f0f7bcd4/FINDINGS.md"
   },
   {
    "repo": "crate-audit",
+   "sca_ecosystem": "crate",
    "ecosystem": "Rust crates (crates.io)",
    "runs_at": "build.rs + proc-macros at cargo build",
    "calibration_n": 800,
    "heldout_n": 799,
-   "naive_flag_rate": "29 (3.6%) held-out / 45 (5.6%) cal (context-blind, HIGH+)",
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1 (0.13%)",
    "heldout_highplus_fp_count": 1,
-   "heldout_highplus_fp_rate": "1 (0.13%)",
-   "tests_count": 16,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (10 mal, 6 ok); run.py prints 21 PASS",
+   "heldout_highplus_rate": "1/799 (0.13%)",
+   "heldout_highplus_fp_rate": "1/799 (0.13%)",
+   "recall": {
+    "kind": "real-malware",
+    "dataset": "removed crates.io malware recovered from a non-deleting mirror (RustSec / OSV MAL- list, 2021-2026)",
+    "unit": "payload files",
+    "engines": "b1b321c → rules frozen in b1de03c",
+    "report_url": "https://github.com/eltociear/crate-audit/blob/824b5e4f23f9f5b4f06b4117215a74796d041241/RECALL.md",
+    "samples": 122,
+    "distinct": 86,
+    "splits": [
+     {
+      "name": "tune",
+      "n": 25,
+      "before": {
+       "k": 6,
+       "n": 25,
+       "pct": 24.0
+      },
+      "after": {
+       "k": 25,
+       "n": 25,
+       "pct": 100.0
+      },
+      "after_is_blind": false
+     },
+     {
+      "name": "late-tune (recovered after the freeze)",
+      "n": 23,
+      "before": {
+       "k": 2,
+       "n": 23,
+       "pct": 8.7
+      },
+      "after": {
+       "k": 12,
+       "n": 23,
+       "pct": 52.2
+      },
+      "after_is_blind": true,
+      "note": "never seen by the frozen rules, but pre-2026 incidents like the tune split"
+     },
+     {
+      "name": "held-out (every 2026 incident)",
+      "n": 38,
+      "before": {
+       "k": 15,
+       "n": 38,
+       "pct": 39.5
+      },
+      "after": {
+       "k": 15,
+       "n": 38,
+       "pct": 39.5
+      },
+      "after_is_blind": true,
+      "note": "the tune-split rules generalised to none of the 2026 incidents"
+     }
+    ],
+    "baseline_all": {
+     "k": 23,
+     "n": 86,
+     "pct": 26.7
+    },
+    "benign_recheck": {
+     "set": "top 2,098 crates re-fetched (the original calibration corpus)",
+     "n": 2098,
+     "highplus_before": 1,
+     "highplus_after": 0
+    }
+   },
+   "naive_flag_rate": "29 (3.6%) held-out / 45 (5.6%) cal (context-blind, HIGH+)",
+   "canaries_malicious": 19,
+   "canaries_benign": 6,
+   "tests_count": 25,
    "notable": [
     "346 of the top 1,599 crates (21.6%) run code during cargo build (217 build scripts, 140 proc-macros)",
     "0 HIGH+ on the top 1,599 after the one held-out fix"
    ],
-   "commit": "b1b321cbdfd855d724e425d6ee05f61fd552b185",
    "findings_date": "2026-11-25",
-   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of crates.io runs code at build time. Held-out first pass 1 hit = reverse-shell-rule bug (FP); final 0 is not blind. Note: held-out was scanned 'with the engine as it stood after calibration' (no frozen commit quoted).",
-   "vendored_commit": "b1b321cbdfd855d724e425d6ee05f61fd552b185",
-   "sca_ecosystem": "crate"
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of crates.io runs code at build time. Held-out first pass 1 hit = reverse-shell-rule bug (FP); final 0 is not blind. Note: held-out was scanned 'with the engine as it stood after calibration' (no frozen commit quoted). Recall: RECALL.md (wave 5, 2026-11-27).",
+   "docs_commit": "824b5e4f23f9f5b4f06b4117215a74796d041241",
+   "docs_url": "https://github.com/eltociear/crate-audit/blob/824b5e4f23f9f5b4f06b4117215a74796d041241/FINDINGS.md"
   },
   {
    "repo": "gha-audit",
+   "sca_ecosystem": "gha",
    "ecosystem": "GitHub Actions (third-party actions)",
    "runs_at": "action main/pre/post entrypoints and Docker build on the CI runner",
    "calibration_n": 1443,
    "heldout_n": 665,
-   "naive_flag_rate": "238 (35.8%) held-out / 674 (46.5%) cal (naive context-free, HIGH)",
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1 HIGH+ (0.15%)",
    "heldout_highplus_fp_count": 1,
-   "heldout_highplus_fp_rate": "1 HIGH+ (0.15%)",
-   "tests_count": 21,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (11 mal, 10 ok); unittest reports 17 tests OK",
+   "heldout_highplus_rate": "1/665 (0.15%)",
+   "heldout_highplus_fp_rate": "1/665 (0.15%)",
+   "recall": {
+    "kind": "incident-replay",
+    "dataset": "real compromised-action commits (2025-03 and 2026-03 incidents), fetched by SHA or from Software Heritage",
+    "unit": "commits",
+    "engines": "v0.1.0 (333f374) → v0.2.0 frozen in 64e593d",
+    "report_url": "https://github.com/eltociear/gha-audit/blob/4d694584c6746f2589b38da7a3b1af3cdee81b55/RECALL.md",
+    "samples": 109,
+    "distinct": 5,
+    "splits": [
+     {
+      "name": "tuning",
+      "n": 3,
+      "before": {
+       "k": 3,
+       "n": 3,
+       "pct": 100.0
+      },
+      "after": {
+       "k": 3,
+       "n": 3,
+       "pct": 100.0
+      },
+      "after_is_blind": false
+     },
+     {
+      "name": "held-out, independent payloads",
+      "n": 34,
+      "before": {
+       "k": 34,
+       "n": 34,
+       "pct": 100.0
+      },
+      "after": {
+       "k": 34,
+       "n": 34,
+       "pct": 100.0
+      },
+      "after_is_blind": true,
+      "note": "2 distinct payloads; same technique family as the tuning payloads",
+      "primary": true
+     },
+     {
+      "name": "held-out, byte-identical to a tuning payload",
+      "n": 72,
+      "before": {
+       "k": 72,
+       "n": 72,
+       "pct": 100.0
+      },
+      "after": {
+       "k": 72,
+       "n": 72,
+       "pct": 100.0
+      },
+      "after_is_blind": true,
+      "note": "not independent"
+     }
+    ],
+    "benign_recheck": {
+     "set": "action.yml files re-fetched by the calibration method (overlaps calibration)",
+     "n": 607,
+     "highplus_before": 0,
+     "highplus_after": 0
+    }
+   },
+   "naive_flag_rate": "238 (35.8%) held-out / 674 (46.5%) cal (naive context-free, HIGH)",
+   "canaries_malicious": 12,
+   "canaries_benign": 10,
+   "tests_count": 22,
    "notable": [
     "naive context-free rules flag 46.5% (cal) / 35.8% (held-out) of actions HIGH",
     "53 actions had no entrypoint at the scanned ref (dist/ only on release tags)",
     "115 actions declare pre:/post: hooks; 60 Docker actions run a prebuilt docker:// image"
    ],
-   "commit": "333f37464ac2292929b3f32c7746672e68586c40",
    "findings_date": "2026-11-26 (gha_audit.py 0.1.0, rules frozen 2818df6)",
-   "source_notes": "FINDINGS.md ## Method + ## Headline + ## The held-out false positive.",
-   "vendored_commit": "333f37464ac2292929b3f32c7746672e68586c40",
-   "sca_ecosystem": "gha"
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## The held-out false positive. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "docs_commit": "4d694584c6746f2589b38da7a3b1af3cdee81b55",
+   "docs_url": "https://github.com/eltociear/gha-audit/blob/4d694584c6746f2589b38da7a3b1af3cdee81b55/FINDINGS.md"
   },
   {
    "repo": "gomod-audit",
+   "sca_ecosystem": "gomod",
    "ecosystem": "Go modules",
    "runs_at": "init() / package var initialisers at import; cgo; go generate",
    "calibration_n": 1152,
    "heldout_n": 735,
-   "naive_flag_rate": "26 (3.5%) held-out / 59 (5.1%) cal (naive context-free, HIGH+)",
    "heldout_highplus_count": 0,
-   "heldout_highplus_rate": "0 (0.0%)",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0 (0.0%)",
-   "tests_count": 19,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (9 mal, 10 ok); unittest reports 16 tests OK",
+   "heldout_highplus_rate": "0/735 (0.00%)",
+   "heldout_highplus_fp_rate": "0/735 (0.00%)",
+   "recall": {
+    "kind": "incident-replay",
+    "dataset": "reported malicious module versions as the Go proxy served them (research artifacts, Software Heritage, one live copy)",
+    "unit": "modules",
+    "engines": "0.1.0 (frozen 64d9d00) → 0.2.0 frozen in 7b0c7a5",
+    "report_url": "https://github.com/eltociear/gomod-audit/blob/cab5376de03ca12b5e836d378bffbde078fefe2f/RECALL.md",
+    "samples": null,
+    "distinct": null,
+    "splits": [
+     {
+      "name": "tuning",
+      "n": 25,
+      "before": {
+       "k": 20,
+       "n": 25,
+       "pct": 80.0
+      },
+      "after": {
+       "k": 25,
+       "n": 25,
+       "pct": 100.0
+      },
+      "after_is_blind": false
+     },
+     {
+      "name": "held-out",
+      "n": 2,
+      "before": {
+       "k": 1,
+       "n": 2,
+       "pct": 50.0
+      },
+      "after": {
+       "k": 2,
+       "n": 2,
+       "pct": 100.0
+      },
+      "after_is_blind": true,
+      "note": "small and correlated: a smoke test, not a rate"
+     }
+    ],
+    "benign_recheck": {
+     "set": "every third module of the original ranking, re-resolved 2026-11-27",
+     "n": 510,
+     "highplus_before": 0,
+     "highplus_after": 0
+    }
+   },
+   "naive_flag_rate": "26 (3.5%) held-out / 59 (5.1%) cal (naive context-free, HIGH+)",
+   "canaries_malicious": 13,
+   "canaries_benign": 11,
+   "tests_count": 24,
    "notable": [
     "77% (cal) / 67% (held-out) of popular modules have a non-test init(), i.e. run code on import",
     "0 HIGH+ on the single blind held-out run; 7 calibration first-pass FPs fixed by context rules"
    ],
-   "commit": "dfd3ce9b28530a981216cd1fe5189678b7e534c8",
    "findings_date": "2026-11-27 (rules frozen 64d9d00)",
-   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much Go code runs at import time. Ranks 1-1,200 / 1,201-2,000 selected; 48 + 65 not on the proxy excluded -> 1,152 / 735 scanned.",
-   "vendored_commit": "dfd3ce9b28530a981216cd1fe5189678b7e534c8",
-   "sca_ecosystem": "gomod"
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much Go code runs at import time. Ranks 1-1,200 / 1,201-2,000 selected; 48 + 65 not on the proxy excluded -> 1,152 / 735 scanned. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "docs_commit": "cab5376de03ca12b5e836d378bffbde078fefe2f",
+   "docs_url": "https://github.com/eltociear/gomod-audit/blob/cab5376de03ca12b5e836d378bffbde078fefe2f/FINDINGS.md"
   },
   {
    "repo": "hacs-audit",
+   "sca_ecosystem": "hacs",
    "ecosystem": "Home Assistant integrations + HACS frontend cards",
    "runs_at": "integration Python imported/set up inside Home Assistant; card JS in the frontend; requirements pip-installed",
    "calibration_n": 1694,
    "heldout_n": 850,
-   "naive_flag_rate": "14 (1.6%) held-out / 48 (2.8%) cal (context-blind, HIGH+)",
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1 / 850 (0.12%)",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0/850 after human review",
-   "tests_count": 31,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (16 mal, 3 med, 12 ok); run.py prints 35 PASS",
+   "heldout_highplus_rate": "1/850 (0.12%)",
+   "heldout_highplus_fp_rate": "0/850 (0.00%)",
+   "naive_flag_rate": "14 (1.6%) held-out / 48 (2.8%) cal (context-blind, HIGH+)",
+   "canaries_malicious": 16,
+   "canaries_benign": 12,
+   "tests_count": 28,
    "notable": [
     "0 malicious integrations/cards in 2,544 scanned",
     "about two-thirds of declared Python requirements float (unpinned)"
    ],
-   "commit": "cb5fcd6879a2df0f239c303e9ad100020b01b0b2",
    "findings_date": "2026-11-26 (rules frozen a582c96)",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ## Takeaways. AMBIGUOUS: held-out had 1 CRITICAL, described as an accurate pattern match with benign intent ('blind held-out number is 1 / 850 (0.12%), and 0 after human review'); counted here as 0 FP but heldout_highplus_count=1. Cal = 1,700 selected, 6 had nothing scannable -> 1,694.",
-   "vendored_commit": "cb5fcd6879a2df0f239c303e9ad100020b01b0b2",
-   "sca_ecosystem": "hacs"
+   "docs_commit": "95a24b78468ea70bda995ce2369aa7f6806967cd",
+   "docs_url": "https://github.com/eltociear/hacs-audit/blob/95a24b78468ea70bda995ce2369aa7f6806967cd/FINDINGS.md"
   },
   {
    "repo": "hf-code-audit",
+   "sca_ecosystem": "hf",
    "ecosystem": "Hugging Face trust_remote_code models",
    "runs_at": "auto_map modeling/tokenizer code at import under from_pretrained(trust_remote_code=True)",
    "calibration_n": 999,
    "heldout_n": 500,
-   "naive_flag_rate": null,
    "heldout_highplus_count": 4,
-   "heldout_highplus_rate": "4 (0.8%)",
    "heldout_highplus_fp_count": 3,
-   "heldout_highplus_fp_rate": "3 (0.6%)",
+   "heldout_highplus_rate": "4/500 (0.80%)",
+   "heldout_highplus_fp_rate": "3/500 (0.60%)",
+   "naive_flag_rate": null,
+   "canaries_malicious": 12,
+   "canaries_benign": 7,
    "tests_count": 19,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (12 mal, 7 ok); run.py prints 25 PASS",
    "notable": [
     "1 in 500 held-out repos carried a credential harvester (flagged CRITICAL by the frozen rules); top 1,000 had none",
     "10.1% pull code from a repo in another namespace via auto_map (6.0% have no Python of their own)"
    ],
-   "commit": "0cc6cc557192735936530dfb3844cad29fa269bf",
    "findings_date": "2026-11-25/26",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ## Cross-repo code. Held-out HIGH+ = 4 with frozen rules: 1 real, 3 FP. No context-blind baseline reported. Cal = top 1,000 (999 fetched).",
-   "vendored_commit": "63f5d9a9498dd2d30e86d1f1de0608bda8903411",
-   "sca_ecosystem": "hf"
+   "docs_commit": "ce0c52ab8a0e9ba79479682f73cc0433bd1c03a0",
+   "docs_url": "https://github.com/eltociear/hf-code-audit/blob/ce0c52ab8a0e9ba79479682f73cc0433bd1c03a0/FINDINGS.md"
   },
   {
    "repo": "homebrew-audit",
+   "sca_ecosystem": "homebrew",
    "ecosystem": "Homebrew formulae, casks and third-party taps",
    "runs_at": "formula/cask Ruby install hooks (postflight etc.) at brew install",
    "calibration_n": 16593,
    "heldout_n": null,
-   "naive_flag_rate": null,
    "heldout_highplus_count": null,
-   "heldout_highplus_rate": null,
    "heldout_highplus_fp_count": null,
+   "heldout_highplus_rate": null,
    "heldout_highplus_fp_rate": null,
+   "naive_flag_rate": null,
+   "canaries_malicious": 12,
+   "canaries_benign": 2,
    "tests_count": 14,
-   "tests_how": "12 tests/canaries + 2 tests/benign; run_tests.py prints 14 PASS",
    "notable": [
     "official repos clean: 0 CRITICAL over 16,593 packages; 6 HIGH (http:// + sha256 :no_check)",
     "651 third-party casks (11.1%) strip macOS quarantine in install hooks, across 6 taps",
     "7 of 139 third-party taps have >=1 HIGH/CRITICAL"
    ],
-   "commit": "352e55da8ae4b9e1d535093b7ffc75d38c49c9f2",
    "findings_date": "2026-11-24 (core/cask HEADs)",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ### 1. Quarantine stripping. No held-out split: official repos (8,742 core + 7,851 cask = 16,593) served as the tuning 'reference set'; 5,843 third-party files were the target scan (22,436 total). calibration_n = reference set.",
-   "vendored_commit": "01892ad23678fea0ad9f0d6b91b204a2e116b30c",
-   "sca_ecosystem": "homebrew"
+   "docs_commit": "a010fde8739e53b367afd018cfb46749280c32f3",
+   "docs_url": "https://github.com/eltociear/homebrew-audit/blob/a010fde8739e53b367afd018cfb46749280c32f3/FINDINGS.md"
   },
   {
    "repo": "mcp-audit",
+   "sca_ecosystem": "mcp",
    "ecosystem": "MCP servers (and AI-agent skills)",
    "runs_at": "server code + tool descriptions the agent reads/runs when the server is launched",
    "calibration_n": 1060,
    "heldout_n": null,
-   "naive_flag_rate": "51 (4.8%) (HIGH/CRITICAL before this round's calibration)",
    "heldout_highplus_count": null,
-   "heldout_highplus_rate": null,
    "heldout_highplus_fp_count": null,
+   "heldout_highplus_rate": null,
    "heldout_highplus_fp_rate": null,
+   "naive_flag_rate": "51 (4.8%) (HIGH/CRITICAL before this round's calibration)",
+   "canaries_malicious": 23,
+   "canaries_benign": 31,
    "tests_count": 54,
-   "tests_how": "tests/test_calibration.py: CANARIES list (23) + BENIGN list (31); unittest reports 2 tests OK",
    "notable": [
     "0 malicious servers in 1,060; overall FP rate 8/1,060 = 0.75% (0.57% HIGH/CRITICAL only)",
     "of 1,510 registry repos processed, 17.7% no longer exist and 12.1% contain no server source"
    ],
-   "commit": "1769bffdd0b97d39cda689ead7e5dddb3649ec82",
    "findings_date": "2026-11 edition (sample seed 20261125)",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ## The trust-posture finding, grown. No held-out split (single scan; calibrated on benign lines + canaries). naive_flag_rate is the pre-calibration engine rate, not a context-free baseline. FINDINGS says '19 attack canaries' but CANARIES list has 23 entries. Historical July 2026 section (196 servers) ignored.",
-   "vendored_commit": "6b26d23a96a5079b52ff18b688e439f0fbdc9b28",
-   "sca_ecosystem": "mcp"
+   "docs_commit": "bf1cd6624f806a320c2f5be582c8855fc6069f2e",
+   "docs_url": "https://github.com/eltociear/mcp-audit/blob/bf1cd6624f806a320c2f5be582c8855fc6069f2e/FINDINGS.md"
   },
   {
    "repo": "npm-audit",
+   "sca_ecosystem": "npm",
    "ecosystem": "npm (incl. n8n / Node-RED nodes)",
    "runs_at": "preinstall/install/postinstall scripts; node code loaded inside n8n / Node-RED (holding all workflow credentials)",
    "calibration_n": 3370,
    "heldout_n": 2277,
-   "naive_flag_rate": "n8n held-out 33 (3.3%), Node-RED held-out 84 (8.6%) (naive, HIGH+); not reported for the top-npm set",
    "heldout_highplus_count": 9,
-   "heldout_highplus_rate": "0/300 top-npm; 1 (0.1%) n8n; 8 (0.8%) Node-RED",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0/2277 (0%)",
-   "tests_count": 30,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (18 mal, 12 ok); run.py prints 40 PASS",
+   "heldout_highplus_rate": "9/2277 (0.40%)",
+   "heldout_highplus_fp_rate": "0/2277 (0.00%)",
+   "recall": {
+    "kind": "real-malware",
+    "dataset": "DataDog malicious-software-packages-dataset (npm, 2024-2026)",
+    "unit": "distinct payloads (deduped)",
+    "engines": "0.1.0 → rules frozen in a753143",
+    "report_url": "https://github.com/eltociear/npm-audit/blob/80f08775f2731f3826cc181781ad7c4d0f19e9a8/RECALL.md",
+    "samples": 995,
+    "distinct": 672,
+    "splits": [
+     {
+      "name": "tune",
+      "n": 405,
+      "before": {
+       "k": 262,
+       "n": 405,
+       "pct": 64.7
+      },
+      "after": {
+       "k": 340,
+       "n": 405,
+       "pct": 84.0
+      },
+      "after_is_blind": false
+     },
+     {
+      "name": "held-out (unseen families)",
+      "n": 267,
+      "before": {
+       "k": 157,
+       "n": 267,
+       "pct": 58.8
+      },
+      "after": {
+       "k": 196,
+       "n": 267,
+       "pct": 73.4
+      },
+      "after_is_blind": true
+     }
+    ],
+    "benign_recheck": {
+     "set": "popular packages re-fetched 2026-11-27 (calibration, original held-out, three fresh rank bands)",
+     "n": 2063,
+     "highplus_before": 4,
+     "highplus_after": 5,
+     "note": "precision about where it was, not better; the set blind for the final engine (383) has 1 false positive"
+    }
+   },
+   "naive_flag_rate": "n8n held-out 33 (3.3%), Node-RED held-out 84 (8.6%) (naive, HIGH+); not reported for the top-npm set",
+   "canaries_malicious": 28,
+   "canaries_benign": 15,
+   "tests_count": 43,
    "notable": [
     "83 of the top ~2,000 npm packages run code on npm install",
     "0 HIGH+ on 680 top packages; in 4,967 n8n/Node-RED nodes no stealer/worm/revshell/wiper, and 0 of the remaining HIGH+ are false"
    ],
-   "commit": "cfa1e2b49f87e97128bd579c978ad71c8429df68",
    "findings_date": "FINDINGS.md 2026-11-24/25; FINDINGS-n8n-node-red.md 2026-11-26 (frozen f16570f)",
-   "source_notes": "Summed across disjoint sets: FINDINGS.md ## Method/Headline (cal 380, held-out 300) + FINDINGS-n8n-node-red.md ## Method/Headline (cal n8n 1,500 + Node-RED 1,490; held-out n8n 1,000 + Node-RED 977). Disjoint by construction within each report; overlap between the top-npm set and n8n/Node-RED sets not checked (presumed negligible). Held-out HIGH+ 1 + 8 are all true findings ('of which false 0').",
-   "vendored_commit": "cfa1e2b49f87e97128bd579c978ad71c8429df68",
-   "sca_ecosystem": "npm"
+   "source_notes": "Summed across disjoint sets: FINDINGS.md ## Method/Headline (cal 380, held-out 300) + FINDINGS-n8n-node-red.md ## Method/Headline (cal n8n 1,500 + Node-RED 1,490; held-out n8n 1,000 + Node-RED 977). Disjoint by construction within each report; overlap between the top-npm set and n8n/Node-RED sets not checked (presumed negligible). Held-out HIGH+ 1 + 8 are all true findings ('of which false 0'). Recall: RECALL.md (wave 5, 2026-11-27).",
+   "docs_commit": "80f08775f2731f3826cc181781ad7c4d0f19e9a8",
+   "docs_url": "https://github.com/eltociear/npm-audit/blob/80f08775f2731f3826cc181781ad7c4d0f19e9a8/FINDINGS.md"
   },
   {
    "repo": "nuget-audit",
+   "sca_ecosystem": "nuget",
    "ecosystem": "NuGet (.NET)",
    "runs_at": "auto-imported build/*.props/.targets (<Exec>, inline tasks) at dotnet build/restore; tools/install.ps1 / init.ps1",
    "calibration_n": 1500,
    "heldout_n": 700,
-   "naive_flag_rate": "5 (0.7%) held-out / 3 (0.2%) cal (context-blind, HIGH+)",
    "heldout_highplus_count": 0,
-   "heldout_highplus_rate": "0",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0/700",
+   "heldout_highplus_rate": "0/700 (0.00%)",
+   "heldout_highplus_fp_rate": "0/700 (0.00%)",
+   "naive_flag_rate": "5 (0.7%) held-out / 3 (0.2%) cal (context-blind, HIGH+)",
+   "canaries_malicious": 14,
+   "canaries_benign": 9,
    "tests_count": 23,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (14 mal, 9 ok); run.py prints 31 PASS",
    "notable": [
     "18.1% ship build files; 9.9% have a target that runs automatically; 0 have network primitives in a build target",
     "0 malicious build/install code in 2,758 packages"
    ],
-   "commit": "01ab8453fa7b5cd07bbb001bbcc166ab326fc18e",
    "findings_date": "2026-11-26 (rules frozen 7efa571)",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much code runs when you build. A 558-package build-heavy supplement (not held-out, context-blind 8 (1.4%)) is excluded from calibration_n; including it gives 2,058.",
-   "vendored_commit": "01ab8453fa7b5cd07bbb001bbcc166ab326fc18e",
-   "sca_ecosystem": "nuget"
+   "docs_commit": "403898705f850754b6c7c2a9b6478e12d31fa4da",
+   "docs_url": "https://github.com/eltociear/nuget-audit/blob/403898705f850754b6c7c2a9b6478e12d31fa4da/FINDINGS.md"
   },
   {
    "repo": "obsidian-audit",
+   "sca_ecosystem": "obsidian",
    "ecosystem": "Obsidian community plugins",
    "runs_at": "main.js at plugin enable (Electron, full Node.js)",
    "calibration_n": 1476,
    "heldout_n": 950,
-   "naive_flag_rate": "235 (24.7%) held-out / 580 (39.3%) cal (naive rule set, HIGH+)",
    "heldout_highplus_count": 0,
-   "heldout_highplus_rate": "0",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0/950",
+   "heldout_highplus_rate": "0/950 (0.00%)",
+   "heldout_highplus_fp_rate": "0/950 (0.00%)",
+   "naive_flag_rate": "235 (24.7%) held-out / 580 (39.3%) cal (naive rule set, HIGH+)",
+   "canaries_malicious": 17,
+   "canaries_benign": 4,
    "tests_count": 21,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (14 mal, 7 ok); run.py prints 25 PASS",
    "notable": [
     "naive rules flag 39.3% (cal) / 24.7% (held-out) HIGH+",
     "21.7% of plugins read the whole vault and talk to the network",
     "2 calibration HIGHs were real obfuscation"
    ],
-   "commit": "6b6b6d55cf34a713e90ac4b2437a9ec8b00269e8",
    "findings_date": "2026-11-24 (directory snapshot)",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ## Takeaways. 1,500 / 1,000 selected; 74 had no main.js -> 1,476 / 950 scanned.",
-   "vendored_commit": "8ef4450c404bbf786bd433883fe573722bdd2457",
-   "sca_ecosystem": "obsidian"
+   "docs_commit": "f2b411b1cbc9d52f6c8513f20e324437b0ea1b81",
+   "docs_url": "https://github.com/eltociear/obsidian-audit/blob/f2b411b1cbc9d52f6c8513f20e324437b0ea1b81/FINDINGS.md"
   },
   {
    "repo": "packagist-audit",
+   "sca_ecosystem": "packagist",
    "ecosystem": "Packagist (PHP Composer)",
    "runs_at": "composer-plugin at composer install; autoload.files on every request; Laravel providers / Symfony bundles at boot",
    "calibration_n": 1263,
    "heldout_n": 799,
-   "naive_flag_rate": "268 (33.5%) held-out context-free dangerous-function grep; 32 (4.0%) context-free pass of the same rule regexes",
    "heldout_highplus_count": 2,
-   "heldout_highplus_rate": "2 (0.25%)",
    "heldout_highplus_fp_count": 2,
-   "heldout_highplus_fp_rate": "2 (0.25%)",
-   "tests_count": 27,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (14 mal, 13 ok) [+ tests/meta/hijack-2023.json]; unittest reports 20 tests OK",
+   "heldout_highplus_rate": "2/799 (0.25%)",
+   "heldout_highplus_fp_rate": "2/799 (0.25%)",
+   "recall": {
+    "kind": "incident-replay",
+    "dataset": "real malicious Composer commits (2026 tag rewrites), fetched by commit from GitHub",
+    "unit": "packages",
+    "engines": "0.1.0 → 0.2.0 frozen in 36379de",
+    "report_url": "https://github.com/eltociear/packagist-audit/blob/1ccd78b7cf7e25040979786c14945fed52a7f2be/RECALL.md",
+    "samples": null,
+    "distinct": null,
+    "splits": [
+     {
+      "name": "tuning",
+      "n": 2,
+      "before": {
+       "k": 0,
+       "n": 2,
+       "pct": 0.0
+      },
+      "after": {
+       "k": 2,
+       "n": 2,
+       "pct": 100.0
+      },
+      "after_is_blind": false
+     },
+     {
+      "name": "held-out",
+      "n": 1,
+      "before": {
+       "k": 0,
+       "n": 1,
+       "pct": 0.0
+      },
+      "after": {
+       "k": 0,
+       "n": 1,
+       "pct": 0.0
+      },
+      "after_is_blind": true,
+      "note": "caught only by a fix made after the held-out scan"
+     }
+    ],
+    "benign_recheck": {
+     "set": "every composer-plugin of the calibration set + popular packages, re-fetched 2026-11-27",
+     "n": 520,
+     "highplus_before": 1,
+     "highplus_after": 1
+    }
+   },
+   "naive_flag_rate": "268 (33.5%) held-out context-free dangerous-function grep; 32 (4.0%) context-free pass of the same rule regexes",
+   "canaries_malicious": 17,
+   "canaries_benign": 13,
+   "tests_count": 30,
    "notable": [
     "about a third of popular packages run code without being called (35.1% cal / 27.5% held-out)",
     "only 3 of 86 composer-plugins do statically visible network I/O"
    ],
-   "commit": "086a3176e73148aa0f960380f1d181a7e5917605",
    "findings_date": "2026-11-26 (rules frozen 719357f)",
-   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of Packagist runs without being called. Two naive baselines reported (39.0%/33.5% grep; 2.7%/4.0% regex pass). Calibration's remaining 1 HIGH+ is a correct behavioural hit.",
-   "vendored_commit": "086a3176e73148aa0f960380f1d181a7e5917605",
-   "sca_ecosystem": "packagist"
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of Packagist runs without being called. Two naive baselines reported (39.0%/33.5% grep; 2.7%/4.0% regex pass). Calibration's remaining 1 HIGH+ is a correct behavioural hit. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "docs_commit": "1ccd78b7cf7e25040979786c14945fed52a7f2be",
+   "docs_url": "https://github.com/eltociear/packagist-audit/blob/1ccd78b7cf7e25040979786c14945fed52a7f2be/FINDINGS.md"
   },
   {
    "repo": "pypi-audit",
+   "sca_ecosystem": "pypi",
    "ecosystem": "PyPI (Python)",
    "runs_at": "setup.py / PEP 517 backend / build hooks at pip install; .pth import lines at every interpreter start",
    "calibration_n": 1375,
    "heldout_n": 800,
-   "naive_flag_rate": "53 (6.6%) held-out signature pass; 128 (16.0%) naive + capability rules",
    "heldout_highplus_count": 2,
-   "heldout_highplus_rate": "2 (0.25%)",
    "heldout_highplus_fp_count": 2,
+   "heldout_highplus_rate": "2/800 (0.25%)",
    "heldout_highplus_fp_rate": "2/800 (0.25%)",
-   "tests_count": 36,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (17 mal, 2 med, 17 ok); unittest reports 14 tests OK",
+   "recall": {
+    "kind": "real-malware",
+    "dataset": "DataDog malicious-software-packages-dataset (PyPI, 2022-2026)",
+    "unit": "distinct payloads (deduped)",
+    "engines": "0.1.0 rules (with the 0.2.0 loader) → rules frozen in 45095b5",
+    "report_url": "https://github.com/eltociear/pypi-audit/blob/71db9166b5f9f7b45805b99553f8921ec3abb5c0/RECALL.md",
+    "samples": 1000,
+    "distinct": 518,
+    "splits": [
+     {
+      "name": "tune",
+      "n": 311,
+      "before": {
+       "k": 145,
+       "n": 311,
+       "pct": 46.6
+      },
+      "after": {
+       "k": 269,
+       "n": 311,
+       "pct": 86.5
+      },
+      "after_is_blind": false
+     },
+     {
+      "name": "held-out (family-disjoint)",
+      "n": 207,
+      "before": {
+       "k": 112,
+       "n": 207,
+       "pct": 54.1
+      },
+      "after": {
+       "k": 159,
+       "n": 210,
+       "pct": 75.7
+      },
+      "after_is_blind": true,
+      "note": "denominator moves 207 → 210 because the new loader reads oversized setup.py files"
+     }
+    ],
+    "benign_recheck": {
+     "set": "fresh benign held-out (ranks 2,001-2,800, never used before); 2,142 benign re-checked in all",
+     "n": 767,
+     "highplus_before": 1,
+     "highplus_after": 1,
+     "note": "the same package both before and after"
+    }
+   },
+   "naive_flag_rate": "53 (6.6%) held-out signature pass; 128 (16.0%) naive + capability rules",
+   "canaries_malicious": 25,
+   "canaries_benign": 20,
+   "tests_count": 45,
    "notable": [
     "46% of the calibration set ships build-time code pip may run; 12% are sdist-only",
     "20 packages (1.5%) ship a .pth in the installed wheel that runs at every interpreter start",
     "build-time network I/O is rare: 6 packages (0.5%)"
    ],
-   "commit": "e7332ec9502c64a358e69b6e175ba8a5ec2fc18a",
    "findings_date": "2026-11-26 (rules frozen e07c4b5)",
-   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of PyPI runs code before you call it.",
-   "vendored_commit": "e7332ec9502c64a358e69b6e175ba8a5ec2fc18a",
-   "sca_ecosystem": "pypi"
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of PyPI runs code before you call it. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "docs_commit": "71db9166b5f9f7b45805b99553f8921ec3abb5c0",
+   "docs_url": "https://github.com/eltociear/pypi-audit/blob/71db9166b5f9f7b45805b99553f8921ec3abb5c0/FINDINGS.md"
   },
   {
    "repo": "repo-trust-audit",
+   "sca_ecosystem": "repo-trust",
    "ecosystem": "Repository trust surfaces (agent configs, hooks, devcontainers, .envrc, MCP configs)",
    "runs_at": "agent hooks, .envrc, devcontainer initializeCommand, folder-open tasks, auto-approved MCP servers when a repo is opened/trusted",
    "calibration_n": 1000,
    "heldout_n": 328,
-   "naive_flag_rate": "9 (2.7%) held-out / 34 (3.4%) cal (context rules off, HIGH/CRITICAL)",
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1 (0.3%)",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0 / 328",
+   "heldout_highplus_rate": "1/328 (0.30%)",
+   "heldout_highplus_fp_rate": "0/328 (0.00%)",
+   "naive_flag_rate": "9 (2.7%) held-out / 34 (3.4%) cal (context rules off, HIGH/CRITICAL)",
+   "canaries_malicious": 17,
+   "canaries_benign": 8,
    "tests_count": 25,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (17 mal, 8 ben); run.py prints 30 PASS",
    "notable": [
     "10.8% of 1,328 qualifying popular repos ship something that runs automatically once the folder is opened/trusted",
     "263 hook commands in 74 repos with Claude Code hooks; 198 call a script inside the repo",
     "zero invisible-Unicode payloads in any surface"
    ],
-   "commit": "c7de3ad71bdb4d08bf5fa96bd50a8525db62233a",
    "findings_date": "2026-11-25/26 (rules frozen 4f39c14)",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ## What popular repositories ship. Held-out HIGH+ hit's match was correct ('of which the match was wrong: 0'), so fp_count=0.",
-   "vendored_commit": "0da6460a8541fa873a9272e6e7d2a51b2cd6383f",
-   "sca_ecosystem": "repo-trust"
+   "docs_commit": "693e6de22ed4603655255464ec8eb57b0d9edb9a",
+   "docs_url": "https://github.com/eltociear/repo-trust-audit/blob/693e6de22ed4603655255464ec8eb57b0d9edb9a/FINDINGS.md"
   },
   {
    "repo": "rubygems-audit",
+   "sca_ecosystem": "rubygems",
    "ecosystem": "RubyGems",
    "runs_at": "extconf.rb / mkrf_conf at gem install; rubygems_plugin.rb on every gem command; top-level lib code at require",
    "calibration_n": 1334,
    "heldout_n": 812,
-   "naive_flag_rate": "5 (0.6%) held-out / 18 (1.3%) cal (context-blind, HIGH+)",
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1 (0.12%)",
    "heldout_highplus_fp_count": 1,
-   "heldout_highplus_fp_rate": "1 (0.12%)",
-   "tests_count": 25,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (15 mal, 10 ok); unittest reports 16 tests OK",
+   "heldout_highplus_rate": "1/812 (0.12%)",
+   "heldout_highplus_fp_rate": "1/812 (0.12%)",
+   "recall": {
+    "kind": "incident-replay",
+    "dataset": "extracted removed gems from public research datasets (leedyun/package, malcontent-samples)",
+    "unit": "gems",
+    "engines": "0.1.0 (frozen be74720) → 0.2.0 frozen in 6237532",
+    "report_url": "https://github.com/eltociear/rubygems-audit/blob/3c26250ffa56c703e66f8b4b1c03d50184406777/RECALL.md",
+    "samples": null,
+    "distinct": null,
+    "splits": [
+     {
+      "name": "tuning (93% one 2020 campaign)",
+      "n": 813,
+      "before": {
+       "k": 782,
+       "n": 813,
+       "pct": 96.2
+      },
+      "after": {
+       "k": 811,
+       "n": 813,
+       "pct": 99.8
+      },
+      "after_is_blind": false,
+      "note": "0.1.0 column is blind; 0.2.0 was tuned on these"
+     },
+     {
+      "name": "held-out",
+      "n": 2,
+      "before": null,
+      "after": {
+       "k": 0,
+       "n": 2,
+       "pct": 0.0
+      },
+      "after_is_blind": true,
+      "note": "both fixed afterwards; reported as fixes, not recall"
+     }
+    ],
+    "benign_recheck": {
+     "set": "600 most-downloaded gems re-fetched 2026-11-27",
+     "n": 600,
+     "highplus_before": 0,
+     "highplus_after": 0
+    }
+   },
+   "naive_flag_rate": "5 (0.6%) held-out / 18 (1.3%) cal (context-blind, HIGH+)",
+   "canaries_malicious": 20,
+   "canaries_benign": 10,
+   "tests_count": 30,
    "notable": [
     "5.3% of the top 3,999 gems declare an extension that runs at gem install",
     "10 gems (0.25%) ship rubygems_plugin.rb, which runs on every gem command"
    ],
-   "commit": "be74720f123a815b49da464490f27f61c684bd3f",
    "findings_date": "2026-11-26 (rules frozen c790673)",
-   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of rubygems.org runs code before you call it. Held-out hit = FP (rm -rf / in a doc string); final 0 not blind.",
-   "vendored_commit": "be74720f123a815b49da464490f27f61c684bd3f",
-   "sca_ecosystem": "rubygems"
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of rubygems.org runs code before you call it. Held-out hit = FP (rm -rf / in a doc string); final 0 not blind. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "docs_commit": "3c26250ffa56c703e66f8b4b1c03d50184406777",
+   "docs_url": "https://github.com/eltociear/rubygems-audit/blob/3c26250ffa56c703e66f8b4b1c03d50184406777/FINDINGS.md"
   },
   {
    "repo": "terraform-audit",
+   "sca_ecosystem": "terraform",
    "ecosystem": "Terraform / OpenTofu registry modules",
    "runs_at": "data \"external\" / \"http\" at terraform plan; provisioner local-exec at apply",
    "calibration_n": 994,
    "heldout_n": 695,
-   "naive_flag_rate": "23 (3.3%) held-out / 27 (2.7%) cal (naive pass, any CRITICAL/HIGH/MEDIUM pattern)",
    "heldout_highplus_count": 0,
-   "heldout_highplus_rate": "0 (0.0%)",
    "heldout_highplus_fp_count": 0,
-   "heldout_highplus_fp_rate": "0 (0.0%)",
+   "heldout_highplus_rate": "0/695 (0.00%)",
+   "heldout_highplus_fp_rate": "0/695 (0.00%)",
+   "naive_flag_rate": "23 (3.3%) held-out / 27 (2.7%) cal (naive pass, any CRITICAL/HIGH/MEDIUM pattern)",
+   "canaries_malicious": 13,
+   "canaries_benign": 9,
    "tests_count": 22,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (13 mal, 9 ok); unittest reports 16 tests OK",
    "notable": [
     "about 1 in 20 popular modules runs a program at terraform plan (5.3% cal / 4.0% held-out)",
     "10.7% (cal) run any local code at plan or apply; 0 send env/credentials/state anywhere"
    ],
-   "commit": "9b7d869b592bd29cb602a471fea4f1b2bd42f58a",
    "findings_date": "2026-11-26 (rules frozen a78087e)",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the registry runs code on your machine. Note the naive baseline counts MEDIUM+, not HIGH+.",
-   "vendored_commit": "9b7d869b592bd29cb602a471fea4f1b2bd42f58a",
-   "sca_ecosystem": "terraform"
+   "docs_commit": "75302cc8292e3f3e5e3392f853b24a4473caefe6",
+   "docs_url": "https://github.com/eltociear/terraform-audit/blob/75302cc8292e3f3e5e3392f853b24a4473caefe6/FINDINGS.md"
   },
   {
    "repo": "userscript-audit",
+   "sca_ecosystem": "userscript",
    "ecosystem": "Userscripts (Greasy Fork; Tampermonkey/Violentmonkey/Greasemonkey)",
    "runs_at": "script body on every matching page load (@match), with GM_* privileges",
    "calibration_n": 1498,
    "heldout_n": 700,
-   "naive_flag_rate": "127 (18.1%) held-out / 276 (18.4%) cal (context-blind, HIGH+)",
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1 (0.14%)",
    "heldout_highplus_fp_count": 1,
-   "heldout_highplus_fp_rate": "1 (0.14%)",
+   "heldout_highplus_rate": "1/700 (0.14%)",
+   "heldout_highplus_fp_rate": "1/700 (0.14%)",
+   "naive_flag_rate": "127 (18.1%) held-out / 276 (18.4%) cal (context-blind, HIGH+)",
+   "canaries_malicious": 21,
+   "canaries_benign": 9,
    "tests_count": 30,
-   "tests_how": "30 fixture files in tests/fixtures (14 mal, 7 med, 9 ok *.user.js); run.py prints 34 PASS",
    "notable": [
     "context-blind rules flag ~18% of top scripts, all false positives",
     "0 credential harvesters / clipboard hijackers / miners in 2,198 scripts; 3 calibration HIGHs are real remote-loader/obfuscation patterns"
    ],
-   "commit": "25bc038a57dd89c30c6f4229972581b0ffd1fe55",
    "findings_date": "2026-11-26 (rules frozen 2b7de32)",
    "source_notes": "FINDINGS.md ## Method + ## Headline. Held-out = 400 random (ranks 1,501-2,400) + 150 newest + 150 recently updated.",
-   "vendored_commit": "25bc038a57dd89c30c6f4229972581b0ffd1fe55",
-   "sca_ecosystem": "userscript"
+   "docs_commit": "c9948725947b6a5b9d59c006241367b4c63f6d00",
+   "docs_url": "https://github.com/eltociear/userscript-audit/blob/c9948725947b6a5b9d59c006241367b4c63f6d00/FINDINGS.md"
   },
   {
    "repo": "vimplugin-audit",
+   "sca_ecosystem": "vimplugin",
    "ecosystem": "Vim / Neovim plugins",
    "runs_at": "plugin/, after/plugin/, ftdetect/ at every editor startup; build/do/run hooks + install.sh at plugin install",
    "calibration_n": 1199,
    "heldout_n": 698,
-   "naive_flag_rate": "3 (0.4%) held-out naive attack-signature regex; 390 (55.9%) naive dangerous-API grep",
    "heldout_highplus_count": 1,
-   "heldout_highplus_rate": "1 (0.14%)",
    "heldout_highplus_fp_count": 1,
-   "heldout_highplus_fp_rate": "1 (0.14%)",
-   "tests_count": 30,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (15 mal, 3 med, 12 ok); unittest reports 13 tests OK",
+   "heldout_highplus_rate": "1/698 (0.14%)",
+   "heldout_highplus_fp_rate": "1/698 (0.14%)",
+   "naive_flag_rate": "3 (0.4%) held-out naive attack-signature regex; 390 (55.9%) naive dangerous-API grep",
+   "canaries_malicious": 15,
+   "canaries_benign": 12,
+   "tests_count": 27,
    "notable": [
     "a context-free grep of dangerous APIs flags 56-65% of plugins; calibrated engine 0-0.14% HIGH+",
     "about half of popular plugins run shell commands"
    ],
-   "commit": "9d7340e86161c891ab3b2960cbfeb1c6958b3ad5",
    "findings_date": "2026-11 edition (rules frozen 124accd)",
    "source_notes": "FINDINGS.md ## Method + ## Headline + ## Takeaways. Held-out 699 fetched, 698 scanned (1 timeout, reported incomplete). FP deliberately not re-tuned.",
-   "vendored_commit": "9d7340e86161c891ab3b2960cbfeb1c6958b3ad5",
-   "sca_ecosystem": "vimplugin"
+   "docs_commit": "1c67aea8b60c1c03b41729156407a4b12d793bce",
+   "docs_url": "https://github.com/eltociear/vimplugin-audit/blob/1c67aea8b60c1c03b41729156407a4b12d793bce/FINDINGS.md"
   },
   {
    "repo": "vsix-audit",
+   "sca_ecosystem": "vsix",
    "ecosystem": "VS Code / Open VSX extensions",
    "runs_at": "extension activate() (esp. '*' / onStartupFinished) as unsandboxed Node.js",
-   "calibration_n": 350,
-   "heldout_n": 595,
+   "calibration_n": 937,
+   "heldout_n": 893,
+   "heldout_highplus_count": 10,
+   "heldout_highplus_fp_count": 7,
+   "heldout_highplus_rate": "10/893 (1.12%)",
+   "heldout_highplus_fp_rate": "7/893 (0.78%)",
+   "earlier_heldout_highplus_count": 17,
+   "earlier_heldout_n": 595,
+   "recall": {
+    "kind": "real-malware",
+    "dataset": "4 removed extensions archived by researchers + 20 own reconstructions + 17 third-party malicious samples",
+    "unit": "extensions",
+    "engines": "0.1.0 → 0.2.0 frozen in 5ed9763",
+    "report_url": "https://github.com/eltociear/vsix-audit/blob/7b82c369dc7a43a060a614c75248d68ece60a4f9/FINDINGS.md",
+    "samples": null,
+    "distinct": null,
+    "splits": [
+     {
+      "name": "real samples (tuned on)",
+      "n": 4,
+      "before": {
+       "k": 1,
+       "n": 4,
+       "pct": 25.0
+      },
+      "after": {
+       "k": 4,
+       "n": 4,
+       "pct": 100.0
+      },
+      "after_is_blind": false
+     },
+     {
+      "name": "own reconstructions (tuned on)",
+      "n": 20,
+      "before": {
+       "k": 7,
+       "n": 20,
+       "pct": 35.0
+      },
+      "after": {
+       "k": 19,
+       "n": 20,
+       "pct": 95.0
+      },
+      "after_is_blind": false
+     },
+     {
+      "name": "third-party samples (held out)",
+      "n": 17,
+      "before": {
+       "k": 3,
+       "n": 17,
+       "pct": 17.6
+      },
+      "after": {
+       "k": 4,
+       "n": 17,
+       "pct": 23.5
+      },
+      "after_is_blind": true,
+      "note": "11 of the 17 are defanged demos with no executable payload"
+     }
+    ],
+    "benign_recheck": {
+     "set": "original calibration corpus re-downloaded 2026-11-27",
+     "n": 937,
+     "highplus_before": 3,
+     "highplus_after": 3,
+     "note": "fresh held-out set 3 (893, frozen engine): 7 false positives (0.8%), 10 flagged (1.1%)"
+    }
+   },
    "naive_flag_rate": "57 (8.9%) on ranks 1-650 (641 scanned) (context-blind, HIGH/CRITICAL)",
-   "heldout_highplus_count": 17,
-   "heldout_highplus_rate": "held-out 1: 9 (3.0%); held-out 2: 8 (2.7%)",
-   "heldout_highplus_fp_count": 17,
-   "heldout_highplus_fp_rate": "17/595 (2.9%)",
-   "tests_count": 33,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (15 mal, 3 med, 15 ok); run.py prints 38 PASS",
+   "canaries_malicious": 20,
+   "canaries_benign": 20,
+   "tests_count": 40,
    "notable": [
-    "on never-seen popular extensions ~1 in 35 needed a human look (held-out 3.0% / 2.7%), all benign shapes",
-    "final engine 3/936 (0.3%) HIGH+ (not independent); no GlassWorm-style payloads in 936 extensions"
+    "on a fresh never-seen set of 893 extensions the frozen v0.2.0 engine flagged 10 (1.1%), of which 7 (0.8%) were false positives; the three true findings post data to a public request bin",
+    "the v0.1.0 engine needed a human look on ~1 in 35 never-seen extensions (held-out 3.0% / 2.7%), all benign shapes",
+    "no GlassWorm-style payloads in 936 popular extensions"
    ],
-   "commit": "3aa5d8e0a898abfe441ee13fd38f7899894a75d8",
-   "findings_date": "2026-11-24/25",
-   "source_notes": "FINDINGS.md ## Method + ## Headline. AMBIGUOUS: calibration_n=350 is ranks 1-350 as selected (scanned count not stated; 641-300 implies ~341). heldout_n sums two disjoint sets (held-out 1 ranks 351-650: 300; held-out 2 ranks ~651-950: 295); held-out 1 was later folded into calibration. All 17 held-out HIGH+ were benign shapes, counted as FP; summed rate computed.",
-   "vendored_commit": "3aa5d8e0a898abfe441ee13fd38f7899894a75d8",
-   "sca_ecosystem": "vsix"
+   "findings_date": "2026-11-27 (held-out 3 frozen 5ed9763)",
+   "source_notes": "FINDINGS.md ## Update 2026-11-27 (v0.2.0): calibration = the original 950 IDs re-downloaded (937 scanned; held-out 1+2 were folded in); held-out = set 3 (893 scanned, frozen 5ed9763). v0.2.1 fixes after set 3 give 3 HIGH+ / 0 FP on the same 893 - not independent, not quoted.",
+   "docs_commit": "7b82c369dc7a43a060a614c75248d68ece60a4f9",
+   "docs_url": "https://github.com/eltociear/vsix-audit/blob/7b82c369dc7a43a060a614c75248d68ece60a4f9/FINDINGS.md",
+   "display": {
+    "note": "vsix-audit's row is its fresh held-out set 3, scanned once with the frozen v0.2.0 engine (Open VSX ranks 946-1449 + VS Code Marketplace top). The v0.1.0 engine had 17/595 (2.9%) on held-out sets 1+2, all benign shapes; those sets were then folded into calibration."
+   }
   },
   {
    "repo": "winpkg-audit",
+   "sca_ecosystem": "winpkg",
    "ecosystem": "Windows packages (Scoop, winget, Chocolatey)",
    "runs_at": "Scoop pre_install/post_install/installer.script PowerShell; chocolateyInstall.ps1; winget installers at install",
    "calibration_n": 57554,
    "heldout_n": 58157,
-   "naive_flag_rate": null,
    "heldout_highplus_count": null,
-   "heldout_highplus_rate": null,
    "heldout_highplus_fp_count": 1,
-   "heldout_highplus_fp_rate": "1 misfire class (rate not reported)",
+   "heldout_highplus_rate": null,
+   "heldout_highplus_fp_rate": "1/58157 (0.00%)",
+   "naive_flag_rate": null,
+   "canaries_malicious": 20,
+   "canaries_benign": 3,
    "tests_count": 23,
-   "tests_how": "20 entries in tests/canaries (15 choco dirs + 5 scoop/winget files) + 3 in tests/benign; run_tests.py prints 24 PASS",
    "notable": [
     "44% of Scoop manifests (43,988) carry install-time PowerShell",
     "official sources nearly clean (Scoop official 6/6,508, winget 0/16,502 HIGH+); after calibration every remaining HIGH+ is a true pattern match",
     "6 distinct Scoop apps download-and-run from install hooks; 5 add Defender exclusions"
    ],
-   "commit": "89dc2d09c5426ad070ef6c862bd66ce50ac7571d",
    "findings_date": "2026-11-25 (repo HEADs)",
    "source_notes": "FINDINGS.md ## Corpus + ## Method + ## Headline + ## What the scan found. AMBIGUOUS: cal = tuning half 49,318 Scoop + 8,236 winget; held-out = 49,891 Scoop + 8,266 winget (summed, disjoint by hash split). Held-out surfaced 'one more misfire class' (one app/manifest described) - count of affected manifests not stated; recorded as 1. No naive baseline and no per-half HIGH+ count reported; Chocolatey sets (1,277) were a separate second-source check.",
-   "vendored_commit": "cd6db2911380168c5986f8f1a4ec36c4b33d6c3c",
-   "sca_ecosystem": "winpkg"
+   "docs_commit": "57ecb013ff09c3fd16eba8b9a35afd8a8267c59a",
+   "docs_url": "https://github.com/eltociear/winpkg-audit/blob/57ecb013ff09c3fd16eba8b9a35afd8a8267c59a/FINDINGS.md",
+   "display": {
+    "alerts": "not reported",
+    "misfires": "1 class (count not reported)",
+    "note": "homebrew-audit and mcp-audit were calibrated without a held-out split; winpkg-audit's held-out half (58,157 Scoop + winget manifests) surfaced one more misfire class without a manifest count, so it is left out of the pool."
+   }
   },
   {
    "repo": "wordpress-audit",
+   "sca_ecosystem": "wordpress",
    "ecosystem": "WordPress plugins",
    "runs_at": "plugin PHP on activation and on every request",
    "calibration_n": 1200,
    "heldout_n": 800,
-   "naive_flag_rate": "387 (48.4%) held-out / 704 (58.7%) cal (naive rule set)",
    "heldout_highplus_count": 2,
-   "heldout_highplus_rate": "2 (0.25%)",
    "heldout_highplus_fp_count": 2,
-   "heldout_highplus_fp_rate": "2 (0.25%)",
+   "heldout_highplus_rate": "2/800 (0.25%)",
+   "heldout_highplus_fp_rate": "2/800 (0.25%)",
+   "naive_flag_rate": "387 (48.4%) held-out / 704 (58.7%) cal (naive rule set)",
+   "canaries_malicious": 11,
+   "canaries_benign": 13,
    "tests_count": 24,
-   "tests_how": "fixture dirs under tests/fixtures (mal-/med-/low-/unl-/ok-/ben-), which the runner iterates (11 mal, 13 ok); unittest reports 11 tests OK",
    "notable": [
     "naive rule set flags 58.7% (cal) / 48.4% (held-out); calibrated engine 0 / 0.25% HIGH+",
     "0 malicious plugins in the 2,000 most-installed"
    ],
-   "commit": "c11cfac5622e52bd8c71e8ea92f279304a0a69d2",
    "findings_date": "2026-11-26 (rules frozen f05c237)",
    "source_notes": "FINDINGS.md ## Method + ## Headline. Both held-out FPs were the php_drop rule.",
-   "vendored_commit": "c11cfac5622e52bd8c71e8ea92f279304a0a69d2",
-   "sca_ecosystem": "wordpress"
+   "docs_commit": "af988ddbae8d1856164fcfe781fdd8cfa9522fe3",
+   "docs_url": "https://github.com/eltociear/wordpress-audit/blob/af988ddbae8d1856164fcfe781fdd8cfa9522fe3/FINDINGS.md"
   }
  ],
  "totals": {
   "repos": 24,
-  "calibration_n": 102879,
-  "heldout_n": 74668,
-  "heldout_highplus_fp_count": 34,
-  "heldout_highplus_fp_rate_pooled": "34/74668 (0.046%) over 22 repos with held-out FP data; excluding winpkg-audit (58,157 manifests): 33/16511 (0.20%)",
-  "tests_count": 631,
-  "notes": "nulls: calibration_n: none; heldout_n: homebrew-audit, mcp-audit; naive_flag_rate: browserext-audit, hf-code-audit, homebrew-audit, winpkg-audit; heldout_highplus_fp_count: homebrew-audit, mcp-audit. FP counts follow each doc's own label (accurate-but-benign HIGH+ hits in aur, browserext, hacs, repo-trust, npm not counted as FP; see heldout_highplus_count). winpkg's 57,554/58,157 manifests dominate calibration_n/heldout_n sums. tests_count = canary + benign-control fixtures (mcp: CANARIES+BENIGN lists), not runner check counts.",
-  "heldout_highplus_alerts_pooled_excl_winpkg": "48/16511 (0.29%)",
-  "heldout_highplus_misfires_pooled_excl_winpkg": "33/16511 (0.20%)",
+  "calibration_n": 103466,
+  "heldout_n": 74966,
+  "pooled_repos": [
+   "aur",
+   "blender",
+   "browserext",
+   "comfyui",
+   "crate",
+   "gha",
+   "gomod",
+   "hacs",
+   "hf",
+   "npm",
+   "nuget",
+   "obsidian",
+   "packagist",
+   "pypi",
+   "repo-trust",
+   "rubygems",
+   "terraform",
+   "userscript",
+   "vimplugin",
+   "vsix",
+   "wordpress"
+  ],
+  "pooled_excluded": [
+   "homebrew",
+   "mcp",
+   "winpkg"
+  ],
+  "pooled_heldout_n": 16809,
+  "pooled_heldout_highplus_alerts": 41,
+  "pooled_heldout_highplus_misfires": 23,
+  "pooled_alert_rate": "41/16809 (0.24%)",
+  "pooled_misfire_rate": "23/16809 (0.14%)",
+  "tests_count": 672,
   "sca_canary_replay": {
-   "malicious": 372,
-   "malicious_passed": 372,
-   "benign": 246,
-   "benign_passed": 246,
-   "note": "every scanner's own canaries replayed through sca's adapters at the vendored commits"
-  }
+   "malicious": 414,
+   "benign": 258,
+   "note": "every scanner's own canaries + benign controls, replayed through sca's adapters by tests/test_canaries.py at the vendored commits"
+  },
+  "recall_repos": [
+   "crate",
+   "gha",
+   "gomod",
+   "npm",
+   "packagist",
+   "pypi",
+   "rubygems",
+   "vsix"
+  ],
+  "notes": "Held-out columns are each repo's blind run with frozen rules; vsix uses its fresh held-out set 3 (frozen v0.2.0), the v0.1.0 held-out sets 1+2 are kept as earlier_heldout_*. FP counts follow each doc's own label: accurate-but-benign HIGH+ hits are alerts, not misfires. Recall 'after' numbers on splits with after_is_blind=false were tuned on those samples and are not recall estimates."
  }
 }

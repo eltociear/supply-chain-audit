@@ -1,0 +1,784 @@
+{
+ "_doc": "Source of family_stats.json. scripts/gen_stats.py reads each scanner's docs at its vendored commit and extracts every number through the quotes below: a quote is literal text (whitespace-insensitive) in which each {#} captures an integer; several {#} or a list of quotes are summed; FILE:: picks a doc other than FINDINGS.md; {\"q\":..., \"value\": N} asserts the quote is present and uses N (for numbers the doc spells out in words). If a doc changes so a quote no longer matches, gen_stats.py fails instead of drifting. Text fields are curated and not checked.",
+ "repos": {
+  "aur-audit": {
+   "ecosystem": "AUR (Arch User Repository)",
+   "runs_at": "PKGBUILD at makepkg; .install scriptlets + alpm hooks as root at pacman install",
+   "naive_flag_rate": "88 (8.8%) held-out / 278 (13.9%) cal (context-blind, HIGH+)",
+   "notable": [
+    "0 CRITICAL across 3,300 packages, incl. a 300-package sample of the June 2026 campaign list (no live indicators)",
+    "context-blind signatures flag 13.9% (cal) / 8.8% (held-out) HIGH+ vs 0.05% / 0.3% calibrated"
+   ],
+   "findings_date": "2026-11-25 (AUR metadata dump)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline. Held-out HIGH = 3 (blind) -> 2 after fix; only 1 of the 3 is labelled a real false positive (printf message); the other 2 are benign-intent real pattern matches. fp_rate computed (1/1000). Also a 300-pkg campaign sample, not counted in cal/held-out.",
+   "quotes": {
+    "calibration_n": "Calibration set ({#}):",
+    "heldout_n": "Held-out set ({#}):",
+    "heldout_highplus_count": "| HIGH | 1 (0.05%) | {#} (0.3%) → 2 after one fix",
+    "heldout_highplus_fp_count": {
+     "q": "The fourth held-out HIGH was a real false positive",
+     "value": 1
+    }
+   }
+  },
+  "blender-audit": {
+   "ecosystem": "Blender add-ons / extensions (+ .blend files)",
+   "runs_at": "register()/module body at add-on enable, app handlers; Python embedded in .blend (Auto Run)",
+   "naive_flag_rate": "130 (21.2%) held-out / 224 (19.8%) cal (no context rules, HIGH+)",
+   "notable": [
+    "0 malicious add-ons in 1,743 (1,243 extensions.blender.org ids + 500 GitHub repos)",
+    "~20% of add-ons trip HIGH+ with context-free signatures"
+   ],
+   "findings_date": "2026-11-26 (platform snapshot)",
+   "source_notes": "FINDINGS.md ## Method (split 1,130/613) + ## Headline. Held-out HIGH was a false positive (debugger add-on Popen shell=True loop); post-fix 0/613 is not blind.",
+   "quotes": {
+    "calibration_n": "calibration set of {#} (800",
+    "heldout_n": "held-out set of {#} (443",
+    "heldout_highplus_count": "| **HIGH / CRITICAL** | **0** | **{#} (0.16%)**",
+    "heldout_highplus_fp_count": {
+     "q": "The one held-out HIGH was a false positive",
+     "value": 1
+    }
+   }
+  },
+  "browserext-audit": {
+   "ecosystem": "Browser extensions (Chrome Web Store + Firefox AMO)",
+   "runs_at": "background/content scripts on install and on every page load",
+   "naive_flag_rate": null,
+   "notable": [
+    "no theft/RCE shape in 1,594 popular extensions (1,000 AMO + 594 Chrome)",
+    "14% of popular extensions hold the cookies + every-site permission pair",
+    "first-draft rules gave 23 HIGH on calibration, 0 after tuning"
+   ],
+   "findings_date": "2026-11-25/26",
+   "source_notes": "FINDINGS.md ## Method + ## Headline. No context-blind baseline reported (only '23 with first-draft rules' on cal). The 1 held-out HIGH is stated as accurate, not an FP (undisclosed telemetry to a webhook), so fp_count=0. 14% figure from ## Takeaways.",
+   "quotes": {
+    "calibration_n": "**Calibration set ({#}):**",
+    "heldout_n": "**Held-out set ({#}):**",
+    "heldout_highplus_count": "| HIGH | 0 (23 with first-draft rules) | **{#}** |",
+    "heldout_highplus_fp_count": {
+     "q": "The held-out HIGH is accurate, not a false positive",
+     "value": 0
+    }
+   }
+  },
+  "comfyui-audit": {
+   "ecosystem": "ComfyUI custom nodes",
+   "runs_at": "__init__.py / prestartup_script.py at ComfyUI startup; install.py + requirements at node install",
+   "naive_flag_rate": "2/497 held-out; 9/999 (0.9%) cal (context-blind CRITICAL/HIGH)",
+   "notable": [
+    "0 HIGH+ in 1,496 nodes (top 1,000 by stars + random 500)",
+    "first draft flagged 5 of the first 51 nodes (9.8%) HIGH+, all false positives"
+   ],
+   "findings_date": "2026-11-25/26",
+   "source_notes": "FINDINGS.md ## Method + ## Headline / ### How it got there. Sets were 1,000 and 500 selected; 999 and 497 downloaded/scanned (used here). Held-out naive rate string not given as % in doc (2/497).",
+   "quotes": {
+    "calibration_n": "| Scanned | {#} | 497 |",
+    "heldout_n": "| Scanned | 999 | {#} |",
+    "heldout_highplus_count": "| **HIGH / CRITICAL** | **0** | **{#}** |",
+    "heldout_highplus_fp_count": {
+     "q": "| **HIGH / CRITICAL** | **0** | **0** |",
+     "value": 0
+    }
+   }
+  },
+  "crate-audit": {
+   "ecosystem": "Rust crates (crates.io)",
+   "runs_at": "build.rs + proc-macros at cargo build",
+   "naive_flag_rate": "29 (3.6%) held-out / 45 (5.6%) cal (context-blind, HIGH+)",
+   "notable": [
+    "346 of the top 1,599 crates (21.6%) run code during cargo build (217 build scripts, 140 proc-macros)",
+    "0 HIGH+ on the top 1,599 after the one held-out fix"
+   ],
+   "findings_date": "2026-11-25",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of crates.io runs code at build time. Held-out first pass 1 hit = reverse-shell-rule bug (FP); final 0 is not blind. Note: held-out was scanned 'with the engine as it stood after calibration' (no frozen commit quoted). Recall: RECALL.md (wave 5, 2026-11-27).",
+   "quotes": {
+    "calibration_n": "| Result | Calibration ({#}) | Held-out (799) |",
+    "heldout_n": "| Result | Calibration (800) | Held-out ({#}) |",
+    "heldout_highplus_count": "| `crate-audit`, first pass | 0 | **{#} (0.13%)** |",
+    "heldout_highplus_fp_count": {
+     "q": "The one held-out hit was a real bug",
+     "value": 1
+    }
+   },
+   "recall": {
+    "kind": "real-malware",
+    "dataset": "removed crates.io malware recovered from a non-deleting mirror (RustSec / OSV MAL- list, 2021-2026)",
+    "report": "RECALL.md",
+    "unit": "payload files",
+    "samples": "RECALL.md::That recovered **{#} real `.crate` files",
+    "distinct": "RECALL.md::Recall is computed over the **{#} payload + PoC files",
+    "engines": "b1b321c → rules frozen in b1de03c",
+    "splits": [
+     {
+      "name": "tune",
+      "n": "RECALL.md::| tune: {#} files / 9 crates |",
+      "before": "RECALL.md::| tune: 25 files / 9 crates | HIGH+ {#}/25",
+      "after": "RECALL.md::MEDIUM+ 7/25; crates 6/9 | {#}/25; 9/9 |",
+      "after_blind": false
+     },
+     {
+      "name": "late-tune (recovered after the freeze)",
+      "n": "RECALL.md::| late-tune: {#} files / 10 crates |",
+      "before": "RECALL.md::| late-tune: 23 files / 10 crates | HIGH+ {#}/23",
+      "after": "RECALL.md::crates 2/10 | HIGH+ {#}/23, MEDIUM+ 14/23",
+      "after_blind": true,
+      "note": "never seen by the frozen rules, but pre-2026 incidents like the tune split"
+     },
+     {
+      "name": "held-out (every 2026 incident)",
+      "n": "RECALL.md::| **held-out: {#} files / 16 crates** |",
+      "before": "RECALL.md::| **held-out: 38 files / 16 crates** | HIGH+ {#}/38",
+      "after": "RECALL.md::| **HIGH+ {#}/38, MEDIUM+ 15/38; crates 8/16** |",
+      "after_blind": true,
+      "note": "the tune-split rules generalised to none of the 2026 incidents"
+     }
+    ],
+    "baseline_all": {
+     "n": "RECALL.md::| all: {#} files / 35 crates |",
+     "k": "RECALL.md::| all: 86 files / 35 crates | **HIGH+ {#}/86 (27%)"
+    },
+    "benign": {
+     "set": "top 2,098 crates re-fetched (the original calibration corpus)",
+     "n": "RECALL.md::the **{#} most-downloaded crates**",
+     "before": "RECALL.md::full scan of all 2,098 | **{#} (0.05%)**",
+     "after": "RECALL.md::| Final rules | **{#}** |"
+    }
+   }
+  },
+  "gha-audit": {
+   "ecosystem": "GitHub Actions (third-party actions)",
+   "runs_at": "action main/pre/post entrypoints and Docker build on the CI runner",
+   "naive_flag_rate": "238 (35.8%) held-out / 674 (46.5%) cal (naive context-free, HIGH)",
+   "notable": [
+    "naive context-free rules flag 46.5% (cal) / 35.8% (held-out) of actions HIGH",
+    "53 actions had no entrypoint at the scanned ref (dist/ only on release tags)",
+    "115 actions declare pre:/post: hooks; 60 Docker actions run a prebuilt docker:// image"
+   ],
+   "findings_date": "2026-11-26 (gha_audit.py 0.1.0, rules frozen 2818df6)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## The held-out false positive. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "quotes": {
+    "calibration_n": "| | Calibration ({#}) | Held-out (665) |",
+    "heldout_n": "| | Calibration (1,443) | Held-out ({#}) |",
+    "heldout_highplus_count": "**{#} HIGH+ (0.15%) - a false positive",
+    "heldout_highplus_fp_count": "**{#} HIGH+ (0.15%) - a false positive"
+   },
+   "recall": {
+    "kind": "incident-replay",
+    "dataset": "real compromised-action commits (2025-03 and 2026-03 incidents), fetched by SHA or from Software Heritage",
+    "report": "RECALL.md",
+    "unit": "commits",
+    "samples": "RECALL.md::**Real artifacts scanned: {#} commits",
+    "distinct": "RECALL.md::commits / {#} distinct payloads. Detected",
+    "engines": "v0.1.0 (333f374) → v0.2.0 frozen in 64e593d",
+    "splits": [
+     {
+      "name": "tuning",
+      "n": "RECALL.md::| Tuning | {#} | 3 |",
+      "before": "RECALL.md::| Tuning | 3 | 3 | {#}/3 CRITICAL |",
+      "after": "RECALL.md::| 3/3 | {#}/3 CRITICAL | 3/3 |",
+      "after_blind": false
+     },
+     {
+      "name": "held-out, independent payloads",
+      "n": "RECALL.md::| Held-out, independent payloads (setup-trivy, kics) | {#} | 2 |",
+      "before": "RECALL.md::| 34 | 2 | {#}/34 CRITICAL |",
+      "after": "RECALL.md::| 34/34 | {#}/34 CRITICAL | 34/34 |",
+      "after_blind": true,
+      "note": "2 distinct payloads; same technique family as the tuning payloads",
+      "primary": true
+     },
+     {
+      "name": "held-out, byte-identical to a tuning payload",
+      "n": "RECALL.md::| Held-out, duplicates of a tuning payload (trivy-action) | {#} |",
+      "before": "RECALL.md::| (1, same as tuning) | {#}/72 |",
+      "after": "RECALL.md::| (1, same as tuning) | 72/72 | 72/72 | {#}/72 |",
+      "after_blind": true,
+      "note": "not independent"
+     }
+    ],
+    "benign": {
+     "set": "action.yml files re-fetched by the calibration method (overlaps calibration)",
+     "n": "RECALL.md::| {#} | 607 (same bytes) |",
+     "before": "RECALL.md::| HIGH / CRITICAL | **{#} (0.0%)** |",
+     "after": "RECALL.md::| HIGH / CRITICAL | **0 (0.0%)** | **{#} (0.0%)** |"
+    }
+   }
+  },
+  "gomod-audit": {
+   "ecosystem": "Go modules",
+   "runs_at": "init() / package var initialisers at import; cgo; go generate",
+   "naive_flag_rate": "26 (3.5%) held-out / 59 (5.1%) cal (naive context-free, HIGH+)",
+   "notable": [
+    "77% (cal) / 67% (held-out) of popular modules have a non-test init(), i.e. run code on import",
+    "0 HIGH+ on the single blind held-out run; 7 calibration first-pass FPs fixed by context rules"
+   ],
+   "findings_date": "2026-11-27 (rules frozen 64d9d00)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much Go code runs at import time. Ranks 1-1,200 / 1,201-2,000 selected; 48 + 65 not on the proxy excluded -> 1,152 / 735 scanned. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "quotes": {
+    "calibration_n": "| | Calibration ({#} modules) |",
+    "heldout_n": "| Held-out ({#} modules) |",
+    "heldout_highplus_count": "| `gomod-audit`, first pass | 7 (0.6%) | **{#} (0.0%)**, single blind run",
+    "heldout_highplus_fp_count": "| `gomod-audit`, first pass | 7 (0.6%) | **{#} (0.0%)**, single blind run"
+   },
+   "recall": {
+    "kind": "incident-replay",
+    "dataset": "reported malicious module versions as the Go proxy served them (research artifacts, Software Heritage, one live copy)",
+    "report": "RECALL.md",
+    "unit": "modules",
+    "samples": null,
+    "distinct": null,
+    "engines": "0.1.0 (frozen 64d9d00) → 0.2.0 frozen in 7b0c7a5",
+    "splits": [
+     {
+      "name": "tuning",
+      "n": "RECALL.md::| **tuning set total** | **{#}** |",
+      "before": "RECALL.md::| **tuning set total** | **25** | **{#} (80%)** |",
+      "after": "RECALL.md::| **20** | **{#} (tuned)** |",
+      "after_blind": false
+     },
+     {
+      "name": "held-out",
+      "n": "RECALL.md::rules frozen in `7b0c7a5` | **{#}** |",
+      "before": "RECALL.md::rules frozen in `7b0c7a5` | **2** | {#} |",
+      "after": "RECALL.md::| 1 | 1 | **{#} / 2** |",
+      "after_blind": true,
+      "note": "small and correlated: a smoke test, not a rate"
+     }
+    ],
+    "benign": {
+     "set": "every third module of the original ranking, re-resolved 2026-11-27",
+     "n": "RECALL.md::| HIGH+ | 0 / {#} | **0 / 510** |",
+     "before": "RECALL.md::| HIGH+ | {#} / 510 |",
+     "after": "RECALL.md::| HIGH+ | 0 / 510 | **{#} / 510** |"
+    }
+   }
+  },
+  "hacs-audit": {
+   "ecosystem": "Home Assistant integrations + HACS frontend cards",
+   "runs_at": "integration Python imported/set up inside Home Assistant; card JS in the frontend; requirements pip-installed",
+   "naive_flag_rate": "14 (1.6%) held-out / 48 (2.8%) cal (context-blind, HIGH+)",
+   "notable": [
+    "0 malicious integrations/cards in 2,544 scanned",
+    "about two-thirds of declared Python requirements float (unpinned)"
+   ],
+   "findings_date": "2026-11-26 (rules frozen a582c96)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## Takeaways. AMBIGUOUS: held-out had 1 CRITICAL, described as an accurate pattern match with benign intent ('blind held-out number is 1 / 850 (0.12%), and 0 after human review'); counted here as 0 FP but heldout_highplus_count=1. Cal = 1,700 selected, 6 had nothing scannable -> 1,694.",
+   "quotes": {
+    "calibration_n": "| Calibration (top 1,700) | {#} |",
+    "heldout_n": "| Held-out (random 850, blind) | {#} |",
+    "heldout_highplus_count": "| Held-out (random 850, blind) | 850 | {#} | {#} |",
+    "heldout_highplus_fp_count": "blind held-out number is 1 / 850 (0.12%), and {#} after human review"
+   }
+  },
+  "hf-code-audit": {
+   "ecosystem": "Hugging Face trust_remote_code models",
+   "runs_at": "auto_map modeling/tokenizer code at import under from_pretrained(trust_remote_code=True)",
+   "naive_flag_rate": null,
+   "notable": [
+    "1 in 500 held-out repos carried a credential harvester (flagged CRITICAL by the frozen rules); top 1,000 had none",
+    "10.1% pull code from a repo in another namespace via auto_map (6.0% have no Python of their own)"
+   ],
+   "findings_date": "2026-11-25/26",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## Cross-repo code. Held-out HIGH+ = 4 with frozen rules: 1 real, 3 FP. No context-blind baseline reported. Cal = top 1,000 (999 fetched).",
+   "quotes": {
+    "calibration_n": "| Result | Calibration ({#}) | Held-out, frozen rules (500) |",
+    "heldout_n": "| Held-out, frozen rules ({#}) |",
+    "heldout_highplus_count": "| HIGH / CRITICAL | **0** | {#} (0.8%) |",
+    "heldout_highplus_fp_count": "| …of which false positives | 0 | {#} (0.6%) |"
+   }
+  },
+  "homebrew-audit": {
+   "ecosystem": "Homebrew formulae, casks and third-party taps",
+   "runs_at": "formula/cask Ruby install hooks (postflight etc.) at brew install",
+   "naive_flag_rate": null,
+   "notable": [
+    "official repos clean: 0 CRITICAL over 16,593 packages; 6 HIGH (http:// + sha256 :no_check)",
+    "651 third-party casks (11.1%) strip macOS quarantine in install hooks, across 6 taps",
+    "7 of 139 third-party taps have >=1 HIGH/CRITICAL"
+   ],
+   "findings_date": "2026-11-24 (core/cask HEADs)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ### 1. Quarantine stripping. No held-out split: official repos (8,742 core + 7,851 cask = 16,593) served as the tuning 'reference set'; 5,843 third-party files were the target scan (22,436 total). calibration_n = reference set.",
+   "quotes": {
+    "calibration_n": "Over {#} reviewed packages"
+   }
+  },
+  "mcp-audit": {
+   "ecosystem": "MCP servers (and AI-agent skills)",
+   "runs_at": "server code + tool descriptions the agent reads/runs when the server is launched",
+   "naive_flag_rate": "51 (4.8%) (HIGH/CRITICAL before this round's calibration)",
+   "notable": [
+    "0 malicious servers in 1,060; overall FP rate 8/1,060 = 0.75% (0.57% HIGH/CRITICAL only)",
+    "of 1,510 registry repos processed, 17.7% no longer exist and 12.1% contain no server source"
+   ],
+   "findings_date": "2026-11 edition (sample seed 20261125)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## The trust-posture finding, grown. No held-out split (single scan; calibrated on benign lines + canaries). naive_flag_rate is the pre-calibration engine rate, not a context-free baseline. FINDINGS says '19 attack canaries' but CANARIES list has 23 entries. Historical July 2026 section (196 servers) ignored.",
+   "quotes": {
+    "calibration_n": "stopping once **{#} had scannable server source**"
+   }
+  },
+  "npm-audit": {
+   "ecosystem": "npm (incl. n8n / Node-RED nodes)",
+   "runs_at": "preinstall/install/postinstall scripts; node code loaded inside n8n / Node-RED (holding all workflow credentials)",
+   "naive_flag_rate": "n8n held-out 33 (3.3%), Node-RED held-out 84 (8.6%) (naive, HIGH+); not reported for the top-npm set",
+   "notable": [
+    "83 of the top ~2,000 npm packages run code on npm install",
+    "0 HIGH+ on 680 top packages; in 4,967 n8n/Node-RED nodes no stealer/worm/revshell/wiper, and 0 of the remaining HIGH+ are false"
+   ],
+   "findings_date": "FINDINGS.md 2026-11-24/25; FINDINGS-n8n-node-red.md 2026-11-26 (frozen f16570f)",
+   "source_notes": "Summed across disjoint sets: FINDINGS.md ## Method/Headline (cal 380, held-out 300) + FINDINGS-n8n-node-red.md ## Method/Headline (cal n8n 1,500 + Node-RED 1,490; held-out n8n 1,000 + Node-RED 977). Disjoint by construction within each report; overlap between the top-npm set and n8n/Node-RED sets not checked (presumed negligible). Held-out HIGH+ 1 + 8 are all true findings ('of which false 0'). Recall: RECALL.md (wave 5, 2026-11-27).",
+   "quotes": {
+    "calibration_n": [
+     "| Result | Calibration ({#}) | Held-out (300) |",
+     "FINDINGS-n8n-node-red.md::| n8n calibration ({#}) |",
+     "FINDINGS-n8n-node-red.md::| Node-RED calibration ({#}) |"
+    ],
+    "heldout_n": [
+     "| Result | Calibration (380) | Held-out ({#}) |",
+     "FINDINGS-n8n-node-red.md::| n8n held-out ({#}) |",
+     "FINDINGS-n8n-node-red.md::| Node-RED held-out ({#}) |"
+    ],
+    "heldout_highplus_count": [
+     "| HIGH / CRITICAL | 3 → 0 | **{#}** |",
+     "FINDINGS-n8n-node-red.md::| n8n held-out (1,000) | 33 (3.3%) | {#} (0.1%) |",
+     "FINDINGS-n8n-node-red.md::| Node-RED held-out (977) | 84 (8.6%) | {#} (0.8%) |"
+    ],
+    "heldout_highplus_fp_count": [
+     "| HIGH / CRITICAL | 3 → 0 | **{#}** |",
+     "FINDINGS-n8n-node-red.md::| n8n held-out (1,000) | 33 (3.3%) | 1 (0.1%) | **{#}** |",
+     "FINDINGS-n8n-node-red.md::| Node-RED held-out (977) | 84 (8.6%) | 8 (0.8%) | **{#}** |"
+    ]
+   },
+   "recall": {
+    "kind": "real-malware",
+    "dataset": "DataDog malicious-software-packages-dataset (npm, 2024-2026)",
+    "report": "RECALL.md",
+    "unit": "distinct payloads (deduped)",
+    "samples": "RECALL.md::compromised_lib = {#} samples",
+    "distinct": "RECALL.md::995 samples give {#} distinct keys",
+    "engines": "0.1.0 → rules frozen in a753143",
+    "splits": [
+     {
+      "name": "tune",
+      "n": "RECALL.md::| tune (597 / {#} dedup) |",
+      "before": "RECALL.md::| tune (597 / 405 dedup) | before (0.1.0) | 413 (69.2%) | {#} (64.7%) |",
+      "after": "RECALL.md::| tune | **frozen rules** | 509 (85.3%) | **{#} (84.0%)** |",
+      "after_blind": false
+     },
+     {
+      "name": "held-out (unseen families)",
+      "n": "RECALL.md::(398 / {#} dedup, unseen families)",
+      "before": "RECALL.md::| before (0.1.0) | 235 (59.0%) | {#} (58.8%) |",
+      "after": "RECALL.md::| **frozen rules, scanned once** | 276 (69.3%) | **{#} (73.4%)** |",
+      "after_blind": true
+     }
+    ],
+    "benign": {
+     "set": "popular packages re-fetched 2026-11-27 (calibration, original held-out, three fresh rank bands)",
+     "n": "RECALL.md::| **Total ({#})** |",
+     "before": "RECALL.md::| **Total (2,063)** | **{#}** |",
+     "after": "RECALL.md::| **Total (2,063)** | **4** | | | **{#}** |",
+     "note": "precision about where it was, not better; the set blind for the final engine (383) has 1 false positive"
+    }
+   }
+  },
+  "nuget-audit": {
+   "ecosystem": "NuGet (.NET)",
+   "runs_at": "auto-imported build/*.props/.targets (<Exec>, inline tasks) at dotnet build/restore; tools/install.ps1 / init.ps1",
+   "naive_flag_rate": "5 (0.7%) held-out / 3 (0.2%) cal (context-blind, HIGH+)",
+   "notable": [
+    "18.1% ship build files; 9.9% have a target that runs automatically; 0 have network primitives in a build target",
+    "0 malicious build/install code in 2,758 packages"
+   ],
+   "findings_date": "2026-11-26 (rules frozen 7efa571)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much code runs when you build. A 558-package build-heavy supplement (not held-out, context-blind 8 (1.4%)) is excluded from calibration_n; including it gives 2,058.",
+   "quotes": {
+    "calibration_n": "**Calibration ({#}):**",
+    "heldout_n": "**Held-out ({#}):**",
+    "heldout_highplus_count": "| **Held-out (random 700, rules frozen)** | **700** | **107** | **{#}** | **{#}** |",
+    "heldout_highplus_fp_count": {
+     "q": "| **Held-out (random 700, rules frozen)** | **700** | **107** | **0** | **0** |",
+     "value": 0
+    }
+   }
+  },
+  "obsidian-audit": {
+   "ecosystem": "Obsidian community plugins",
+   "runs_at": "main.js at plugin enable (Electron, full Node.js)",
+   "naive_flag_rate": "235 (24.7%) held-out / 580 (39.3%) cal (naive rule set, HIGH+)",
+   "notable": [
+    "naive rules flag 39.3% (cal) / 24.7% (held-out) HIGH+",
+    "21.7% of plugins read the whole vault and talk to the network",
+    "2 calibration HIGHs were real obfuscation"
+   ],
+   "findings_date": "2026-11-24 (directory snapshot)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## Takeaways. 1,500 / 1,000 selected; 74 had no main.js -> 1,476 / 950 scanned.",
+   "quotes": {
+    "calibration_n": "| Result | Calibration ({#}) | Held-out (950) |",
+    "heldout_n": "| Result | Calibration (1,476) | Held-out ({#}) |",
+    "heldout_highplus_count": [
+     "| CRITICAL | 0 | **{#}** |",
+     "| HIGH | 2 (both real obfuscation) | **{#}** |"
+    ],
+    "heldout_highplus_fp_count": {
+     "q": "| HIGH | 2 (both real obfuscation) | **0** |",
+     "value": 0
+    }
+   }
+  },
+  "packagist-audit": {
+   "ecosystem": "Packagist (PHP Composer)",
+   "runs_at": "composer-plugin at composer install; autoload.files on every request; Laravel providers / Symfony bundles at boot",
+   "naive_flag_rate": "268 (33.5%) held-out context-free dangerous-function grep; 32 (4.0%) context-free pass of the same rule regexes",
+   "notable": [
+    "about a third of popular packages run code without being called (35.1% cal / 27.5% held-out)",
+    "only 3 of 86 composer-plugins do statically visible network I/O"
+   ],
+   "findings_date": "2026-11-26 (rules frozen 719357f)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of Packagist runs without being called. Two naive baselines reported (39.0%/33.5% grep; 2.7%/4.0% regex pass). Calibration's remaining 1 HIGH+ is a correct behavioural hit. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "quotes": {
+    "calibration_n": "| Result | Calibration ({#}) | Held-out (799) |",
+    "heldout_n": "| Result | Calibration (1,263) | Held-out ({#}) |",
+    "heldout_highplus_count": "| 10 | **{#} (0.25%)**: frozen rules, blind",
+    "heldout_highplus_fp_count": {
+     "q": "The held-out run found two real bugs, both fixed after it.",
+     "value": 2
+    }
+   },
+   "recall": {
+    "kind": "incident-replay",
+    "dataset": "real malicious Composer commits (2026 tag rewrites), fetched by commit from GitHub",
+    "report": "RECALL.md",
+    "unit": "packages",
+    "samples": null,
+    "distinct": null,
+    "engines": "0.1.0 → 0.2.0 frozen in 36379de",
+    "splits": [
+     {
+      "name": "tuning",
+      "n": {
+       "q": "RECALL.md::| intercom-php `e8a812c5` (tune) | SAFE (miss) | CRITICAL | CRITICAL |",
+       "value": 2
+      },
+      "before": {
+       "q": "RECALL.md::| intercom-php `e69bf4b3` (tune) | SAFE (miss) | CRITICAL | CRITICAL |",
+       "value": 0
+      },
+      "after": {
+       "q": "RECALL.md::| intercom-php `e69bf4b3` (tune) | SAFE (miss) | CRITICAL | CRITICAL |",
+       "value": 2
+      },
+      "after_blind": false
+     },
+     {
+      "name": "held-out",
+      "n": {
+       "q": "RECALL.md::Held-out recall at frozen rules: 0 / 1.",
+       "value": 1
+      },
+      "before": "RECALL.md::**Real packages: {#} / 3 HIGH+ for 0.1.0.",
+      "after": "RECALL.md::Held-out recall at frozen rules: {#} / 1.",
+      "after_blind": true,
+      "note": "caught only by a fix made after the held-out scan"
+     }
+    ],
+    "benign": {
+     "set": "every composer-plugin of the calibration set + popular packages, re-fetched 2026-11-27",
+     "n": "RECALL.md::| scanned (fetch errors retried) | {#} |",
+     "before": "RECALL.md::| HIGH+ | {#} | **1** (the same package) |",
+     "after": "RECALL.md::| HIGH+ | 1 | **{#}** (the same package) |"
+    }
+   }
+  },
+  "pypi-audit": {
+   "ecosystem": "PyPI (Python)",
+   "runs_at": "setup.py / PEP 517 backend / build hooks at pip install; .pth import lines at every interpreter start",
+   "naive_flag_rate": "53 (6.6%) held-out signature pass; 128 (16.0%) naive + capability rules",
+   "notable": [
+    "46% of the calibration set ships build-time code pip may run; 12% are sdist-only",
+    "20 packages (1.5%) ship a .pth in the installed wheel that runs at every interpreter start",
+    "build-time network I/O is rare: 6 packages (0.5%)"
+   ],
+   "findings_date": "2026-11-26 (rules frozen e07c4b5)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of PyPI runs code before you call it. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "quotes": {
+    "calibration_n": "**Calibration set ({#}):**",
+    "heldout_n": "| | Calibration (1,375) | Held-out ({#}) |",
+    "heldout_highplus_count": "**frozen engine**, HIGH+ | 3 (0.22%) | **{#} (0.25%)** |",
+    "heldout_highplus_fp_count": "**Held-out result: {#} of 800 (0.25%) false positives"
+   },
+   "recall": {
+    "kind": "real-malware",
+    "dataset": "DataDog malicious-software-packages-dataset (PyPI, 2022-2026)",
+    "report": "RECALL.md",
+    "unit": "distinct payloads (deduped)",
+    "samples": "RECALL.md::**{#} packages** stratified",
+    "distinct": "RECALL.md::collapse to **{#} distinct payloads**",
+    "engines": "0.1.0 rules (with the 0.2.0 loader) → rules frozen in 45095b5",
+    "splits": [
+     {
+      "name": "tune",
+      "n": "RECALL.md::| Tune, dedup ({#}) |",
+      "before": "RECALL.md::| 521 (71.4%) | {#} (46.6%) |",
+      "after": "RECALL.md::| 662 (90.7%) | {#} (86.5%) |",
+      "after_blind": false
+     },
+     {
+      "name": "held-out (family-disjoint)",
+      "n": "RECALL.md::| 151 (55.9%) | 112 / {#} (54.1%) |",
+      "before": {
+       "k": "RECALL.md::| 151 (55.9%) | {#} / 207 (54.1%) |",
+       "n": "RECALL.md::| 151 (55.9%) | 112 / {#} (54.1%) |"
+      },
+      "after": {
+       "k": "RECALL.md::**{#} / 210 (75.7%)**",
+       "n": "RECALL.md::**159 / {#} (75.7%)**"
+      },
+      "after_blind": true,
+      "note": "denominator moves 207 → 210 because the new loader reads oversized setup.py files"
+     }
+    ],
+    "benign": {
+     "set": "fresh benign held-out (ranks 2,001-2,800, never used before); 2,142 benign re-checked in all",
+     "n": "RECALL.md::| **Fresh held-out** (ranks 2,001-2,800, never used before) | {#} |",
+     "before": "RECALL.md::| 767 | {#} | **1 (0.13%)** |",
+     "after": "RECALL.md::| 767 | 1 | **{#} (0.13%)** |",
+     "note": "the same package both before and after"
+    }
+   }
+  },
+  "repo-trust-audit": {
+   "ecosystem": "Repository trust surfaces (agent configs, hooks, devcontainers, .envrc, MCP configs)",
+   "runs_at": "agent hooks, .envrc, devcontainer initializeCommand, folder-open tasks, auto-approved MCP servers when a repo is opened/trusted",
+   "naive_flag_rate": "9 (2.7%) held-out / 34 (3.4%) cal (context rules off, HIGH/CRITICAL)",
+   "notable": [
+    "10.8% of 1,328 qualifying popular repos ship something that runs automatically once the folder is opened/trusted",
+    "263 hook commands in 74 repos with Claude Code hooks; 198 call a script inside the repo",
+    "zero invisible-Unicode payloads in any surface"
+   ],
+   "findings_date": "2026-11-25/26 (rules frozen 4f39c14)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## What popular repositories ship. Held-out HIGH+ hit's match was correct ('of which the match was wrong: 0'), so fp_count=0.",
+   "quotes": {
+    "calibration_n": "| Result | Calibration ({#}) | Held-out (328) |",
+    "heldout_n": "| Result | Calibration (1,000) | Held-out ({#}) |",
+    "heldout_highplus_count": "| **repo-trust-audit: HIGH/CRITICAL** | **1 (0.1%)** | **{#} (0.3%)** |",
+    "heldout_highplus_fp_count": "| …of which the match was wrong | 0 | {#} |"
+   }
+  },
+  "rubygems-audit": {
+   "ecosystem": "RubyGems",
+   "runs_at": "extconf.rb / mkrf_conf at gem install; rubygems_plugin.rb on every gem command; top-level lib code at require",
+   "naive_flag_rate": "5 (0.6%) held-out / 18 (1.3%) cal (context-blind, HIGH+)",
+   "notable": [
+    "5.3% of the top 3,999 gems declare an extension that runs at gem install",
+    "10 gems (0.25%) ship rubygems_plugin.rb, which runs on every gem command"
+   ],
+   "findings_date": "2026-11-26 (rules frozen c790673)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the top of rubygems.org runs code before you call it. Held-out hit = FP (rm -rf / in a doc string); final 0 not blind. Recall: RECALL.md (wave 5, 2026-11-27).",
+   "quotes": {
+    "calibration_n": "| Result | Calibration ({#}) | Held-out (812) |",
+    "heldout_n": "| Result | Calibration (1,334) | Held-out ({#}) |",
+    "heldout_highplus_count": "| `rubygems-audit`, first pass / frozen rules | 1 (0.07%) | **{#} (0.12%)** |",
+    "heldout_highplus_fp_count": {
+     "q": "The held-out hit, on the frozen rules, was a configuration-management gem",
+     "value": 1
+    }
+   },
+   "recall": {
+    "kind": "incident-replay",
+    "dataset": "extracted removed gems from public research datasets (leedyun/package, malcontent-samples)",
+    "report": "RECALL.md",
+    "unit": "gems",
+    "samples": null,
+    "distinct": null,
+    "engines": "0.1.0 (frozen be74720) → 0.2.0 frozen in 6237532",
+    "splits": [
+     {
+      "name": "tuning (93% one 2020 campaign)",
+      "n": "RECALL.md::| **all gems with malicious code** | **{#}** |",
+      "before": "RECALL.md::| **all gems with malicious code** | **813** | **{#} (96.2%)** |",
+      "after": "RECALL.md::| **787** | **{#} (99.8%)** |",
+      "after_blind": false,
+      "note": "0.1.0 column is blind; 0.2.0 was tuned on these"
+     },
+     {
+      "name": "held-out",
+      "n": "RECALL.md::**Held-out recall at HIGH+: 0 / {#}.**",
+      "before": null,
+      "after": "RECALL.md::**Held-out recall at HIGH+: {#} / 2.**",
+      "after_blind": true,
+      "note": "both fixed afterwards; reported as fixes, not recall"
+     }
+    ],
+    "benign": {
+     "set": "600 most-downloaded gems re-fetched 2026-11-27",
+     "n": "RECALL.md::| HIGH+ | 0 / {#} | **0 / 600** |",
+     "before": "RECALL.md::| HIGH+ | {#} / 600 |",
+     "after": "RECALL.md::| HIGH+ | 0 / 600 | **{#} / 600** |"
+    }
+   }
+  },
+  "terraform-audit": {
+   "ecosystem": "Terraform / OpenTofu registry modules",
+   "runs_at": "data \"external\" / \"http\" at terraform plan; provisioner local-exec at apply",
+   "naive_flag_rate": "23 (3.3%) held-out / 27 (2.7%) cal (naive pass, any CRITICAL/HIGH/MEDIUM pattern)",
+   "notable": [
+    "about 1 in 20 popular modules runs a program at terraform plan (5.3% cal / 4.0% held-out)",
+    "10.7% (cal) run any local code at plan or apply; 0 send env/credentials/state anywhere"
+   ],
+   "findings_date": "2026-11-26 (rules frozen a78087e)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## How much of the registry runs code on your machine. Note the naive baseline counts MEDIUM+, not HIGH+.",
+   "quotes": {
+    "calibration_n": "| Result | Calibration ({#}) | Held-out (695) |",
+    "heldout_n": "| Result | Calibration (994) | Held-out ({#}) |",
+    "heldout_highplus_count": "| `terraform-audit`, frozen rules, HIGH+ | **0** | **{#} (0.0%)** |",
+    "heldout_highplus_fp_count": "| `terraform-audit`, frozen rules, HIGH+ | **0** | **{#} (0.0%)** |"
+   }
+  },
+  "userscript-audit": {
+   "ecosystem": "Userscripts (Greasy Fork; Tampermonkey/Violentmonkey/Greasemonkey)",
+   "runs_at": "script body on every matching page load (@match), with GM_* privileges",
+   "naive_flag_rate": "127 (18.1%) held-out / 276 (18.4%) cal (context-blind, HIGH+)",
+   "notable": [
+    "context-blind rules flag ~18% of top scripts, all false positives",
+    "0 credential harvesters / clipboard hijackers / miners in 2,198 scripts; 3 calibration HIGHs are real remote-loader/obfuscation patterns"
+   ],
+   "findings_date": "2026-11-26 (rules frozen 2b7de32)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline. Held-out = 400 random (ranks 1,501-2,400) + 150 newest + 150 recently updated.",
+   "quotes": {
+    "calibration_n": "| Result | Calibration ({#}) | Held-out, rules frozen (700) |",
+    "heldout_n": "| Held-out, rules frozen ({#}) |",
+    "heldout_highplus_count": "| HIGH / CRITICAL | 3 (0.20%) | {#} (0.14%) → 0 |",
+    "heldout_highplus_fp_count": "| …benign on review | 0 | {#} |"
+   }
+  },
+  "vimplugin-audit": {
+   "ecosystem": "Vim / Neovim plugins",
+   "runs_at": "plugin/, after/plugin/, ftdetect/ at every editor startup; build/do/run hooks + install.sh at plugin install",
+   "naive_flag_rate": "3 (0.4%) held-out naive attack-signature regex; 390 (55.9%) naive dangerous-API grep",
+   "notable": [
+    "a context-free grep of dangerous APIs flags 56-65% of plugins; calibrated engine 0-0.14% HIGH+",
+    "about half of popular plugins run shell commands"
+   ],
+   "findings_date": "2026-11 edition (rules frozen 124accd)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline + ## Takeaways. Held-out 699 fetched, 698 scanned (1 timeout, reported incomplete). FP deliberately not re-tuned.",
+   "quotes": {
+    "calibration_n": "| | Calibration ({#}) | Held-out (698) |",
+    "heldout_n": "| | Calibration (1,199) | Held-out ({#}) |",
+    "heldout_highplus_count": "**{#} (0.14%) — a false positive",
+    "heldout_highplus_fp_count": "**{#} (0.14%) — a false positive"
+   }
+  },
+  "vsix-audit": {
+   "ecosystem": "VS Code / Open VSX extensions",
+   "runs_at": "extension activate() (esp. '*' / onStartupFinished) as unsandboxed Node.js",
+   "naive_flag_rate": "57 (8.9%) on ranks 1-650 (641 scanned) (context-blind, HIGH/CRITICAL)",
+   "notable": [
+    "on a fresh never-seen set of 893 extensions the frozen v0.2.0 engine flagged 10 (1.1%), of which 7 (0.8%) were false positives; the three true findings post data to a public request bin",
+    "the v0.1.0 engine needed a human look on ~1 in 35 never-seen extensions (held-out 3.0% / 2.7%), all benign shapes",
+    "no GlassWorm-style payloads in 936 popular extensions"
+   ],
+   "findings_date": "2026-11-27 (held-out 3 frozen 5ed9763)",
+   "source_notes": "FINDINGS.md ## Update 2026-11-27 (v0.2.0): calibration = the original 950 IDs re-downloaded (937 scanned; held-out 1+2 were folded in); held-out = set 3 (893 scanned, frozen 5ed9763). v0.2.1 fixes after set 3 give 3 HIGH+ / 0 FP on the same 893 - not independent, not quoted.",
+   "quotes": {
+    "calibration_n": "| Engine | Calibration corpus ({#}) HIGH+ | MEDIUM |",
+    "heldout_n": "| **All held-out 3** | **{#}** |",
+    "heldout_highplus_count": "| **All held-out 3** | **893** | **{#} (1.1%)** |",
+    "heldout_highplus_fp_count": "| **All held-out 3** | **893** | **10 (1.1%)** | **{#} (0.8%)** |",
+    "earlier_heldout_n": [
+     "| Frozen engine, never-seen extensions | held-out 1 ({#}) |",
+     "| Frozen engine, never-seen extensions | held-out 2 ({#}) |"
+    ],
+    "earlier_heldout_highplus_count": [
+     "| held-out 1 (300) | {#} (3.0%) |",
+     "| held-out 2 (295) | {#} (2.7%) |"
+    ]
+   },
+   "recall": {
+    "kind": "real-malware",
+    "dataset": "4 removed extensions archived by researchers + 20 own reconstructions + 17 third-party malicious samples",
+    "report": "FINDINGS.md",
+    "unit": "extensions",
+    "samples": null,
+    "distinct": null,
+    "engines": "0.1.0 → 0.2.0 frozen in 5ed9763",
+    "splits": [
+     {
+      "name": "real samples (tuned on)",
+      "n": "| **1 / {#}** | 4 / 4 (tuned on) |",
+      "before": "| **{#} / 4** | 4 / 4 (tuned on) |",
+      "after": "| **1 / 4** | {#} / 4 (tuned on) |",
+      "after_blind": false
+     },
+     {
+      "name": "own reconstructions (tuned on)",
+      "n": "| **7 / {#}** | 19 / 20 (tuned on) |",
+      "before": "| **{#} / 20** | 19 / 20 (tuned on) |",
+      "after": "| **7 / 20** | {#} / 20 (tuned on) |",
+      "after_blind": false
+     },
+     {
+      "name": "third-party samples (held out)",
+      "n": "| 3 / {#} | **4 / 17** |",
+      "before": "| {#} / 17 | **4 / 17** |",
+      "after": "| 3 / 17 | **{#} / 17** |",
+      "after_blind": true,
+      "note": "11 of the 17 are defanged demos with no executable payload"
+     }
+    ],
+    "benign": {
+     "set": "original calibration corpus re-downloaded 2026-11-27",
+     "n": "| Engine | Calibration corpus ({#}) HIGH+ | MEDIUM |",
+     "before": "| v0.1.0 | {#} (0.3%) | 22 |",
+     "after": "| v0.2.0 | {#} (0.3%), the same three | 24 |",
+     "note": "fresh held-out set 3 (893, frozen engine): 7 false positives (0.8%), 10 flagged (1.1%)"
+    }
+   },
+   "display": {
+    "note": "vsix-audit's row is its fresh held-out set 3, scanned once with the frozen v0.2.0 engine (Open VSX ranks 946-1449 + VS Code Marketplace top). The v0.1.0 engine had 17/595 (2.9%) on held-out sets 1+2, all benign shapes; those sets were then folded into calibration."
+   }
+  },
+  "winpkg-audit": {
+   "ecosystem": "Windows packages (Scoop, winget, Chocolatey)",
+   "runs_at": "Scoop pre_install/post_install/installer.script PowerShell; chocolateyInstall.ps1; winget installers at install",
+   "naive_flag_rate": null,
+   "notable": [
+    "44% of Scoop manifests (43,988) carry install-time PowerShell",
+    "official sources nearly clean (Scoop official 6/6,508, winget 0/16,502 HIGH+); after calibration every remaining HIGH+ is a true pattern match",
+    "6 distinct Scoop apps download-and-run from install hooks; 5 add Defender exclusions"
+   ],
+   "findings_date": "2026-11-25 (repo HEADs)",
+   "source_notes": "FINDINGS.md ## Corpus + ## Method + ## Headline + ## What the scan found. AMBIGUOUS: cal = tuning half 49,318 Scoop + 8,236 winget; held-out = 49,891 Scoop + 8,266 winget (summed, disjoint by hash split). Held-out surfaced 'one more misfire class' (one app/manifest described) - count of affected manifests not stated; recorded as 1. No naive baseline and no per-half HIGH+ count reported; Chocolatey sets (1,277) were a separate second-source check.",
+   "quotes": {
+    "calibration_n": "One half ({#} at the time) plus half of winget ({#})",
+    "heldout_n": "The other {#} Scoop manifests and {#} winget packages",
+    "heldout_highplus_fp_count": {
+     "q": "The held-out half surfaced **one** more misfire class",
+     "value": 1
+    }
+   },
+   "display": {
+    "alerts": "not reported",
+    "misfires": "1 class (count not reported)",
+    "note": "homebrew-audit and mcp-audit were calibrated without a held-out split; winpkg-audit's held-out half (58,157 Scoop + winget manifests) surfaced one more misfire class without a manifest count, so it is left out of the pool."
+   }
+  },
+  "wordpress-audit": {
+   "ecosystem": "WordPress plugins",
+   "runs_at": "plugin PHP on activation and on every request",
+   "naive_flag_rate": "387 (48.4%) held-out / 704 (58.7%) cal (naive rule set)",
+   "notable": [
+    "naive rule set flags 58.7% (cal) / 48.4% (held-out); calibrated engine 0 / 0.25% HIGH+",
+    "0 malicious plugins in the 2,000 most-installed"
+   ],
+   "findings_date": "2026-11-26 (rules frozen f05c237)",
+   "source_notes": "FINDINGS.md ## Method + ## Headline. Both held-out FPs were the php_drop rule.",
+   "quotes": {
+    "calibration_n": "| | Calibration ({#}) | Held-out (800) |",
+    "heldout_n": "| | Calibration (1,200) | Held-out ({#}) |",
+    "heldout_highplus_count": "| **{#} (0.25%)**, both false positives",
+    "heldout_highplus_fp_count": "| **{#} (0.25%)**, both false positives"
+   }
+  }
+ }
+}
