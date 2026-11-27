@@ -3,6 +3,10 @@
 **One CLI over 24 small supply-chain malware scanners - one per place where someone else's
 code runs on your machine before you call it.**
 
+[![60-second demo on YouTube](https://img.youtube.com/vi/CIgleGpAZkY/hqdefault.jpg)](https://www.youtube.com/watch?v=CIgleGpAZkY)
+
+▶ **[Watch the 60-second demo](https://www.youtube.com/watch?v=CIgleGpAZkY)**
+
 `npm install` runs `postinstall`. `pip install` runs `setup.py`. `cargo build` runs `build.rs`.
 Opening a repo in VS Code can run `.vscode/tasks.json`; enabling an Obsidian plugin runs
 `main.js` with full Node access; `from_pretrained(trust_remote_code=True)` runs whatever the
