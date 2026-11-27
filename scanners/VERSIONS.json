@@ -171,10 +171,10 @@
   "vsix-audit": {
    "repo": "eltociear/vsix-audit",
    "url": "https://github.com/eltociear/vsix-audit",
-   "commit": "5ed97633d06fae99050105ea5b24741890efd0c2",
+   "commit": "7b82c369dc7a43a060a614c75248d68ece60a4f9",
    "script": "vsix_audit.py",
-   "sha256": "5e899cea1638540ad4d8c0cd006c6094ed0f928322f585addc8ac68dbb7b293d",
-   "synced_at": "2026-11-27T15:31:45Z"
+   "sha256": "3300340e600c10c9e1125f184a68797e28a3769dd7477405988263055c3aaf83",
+   "synced_at": "2026-11-27T16:01:05Z"
   },
   "winpkg-audit": {
    "repo": "eltociear/winpkg-audit",
@@ -193,5 +193,5 @@
    "synced_at": "2026-11-27T15:31:47Z"
   }
  },
- "synced_at": "2026-11-27T15:37:34Z"
+ "synced_at": "2026-11-27T16:01:05Z"
 }
