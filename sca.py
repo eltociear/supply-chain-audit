@@ -189,8 +189,19 @@ def script_path(eco):
 
 
 # ── Running a scanner ─────────────────────────────────────────────────────────
+SCANNER_PYTHON_ARGS = ["-I", "-X", "utf8"]
+
+
 def _cmd(eco, args):
-    return [sys.executable, "-I", script_path(eco)] + list(args)
+    # Force UTF-8 even for --raw, where the child inherits the caller's streams.
+    # This avoids UnicodeEncodeError on Windows code-page consoles when scanners
+    # print emoji or other non-ASCII output.  -I otherwise ignores env settings.
+    return [sys.executable] + SCANNER_PYTHON_ARGS + [script_path(eco)] + list(args)
+
+
+def _display_command(cmd):
+    script_index = 1 + len(SCANNER_PYTHON_ARGS)
+    return [os.path.basename(cmd[script_index])] + cmd[script_index + 1:]
 
 
 def run_scanner(eco, args, timeout=600, cwd=None, label=None):
@@ -224,7 +235,7 @@ def run_scanner(eco, args, timeout=600, cwd=None, label=None):
         res = [_error_result(eco, label or " ".join(a for a in args if a != "--json"),
                              "scanner returned no results" + (": " + err.strip()[-300:] if err.strip() else ""), cmd)]
     for r in res:
-        r["command"] = [os.path.basename(cmd[2])] + cmd[3:]
+        r["command"] = _display_command(cmd)
         r["seconds"] = secs
         r["scanner_exit_code"] = rc
         if err.strip() and not r.get("error"):
@@ -262,7 +273,7 @@ def _error_result(eco, target, msg, cmd=None):
     r = {"tool": tool, "tool_commit": commit, "ecosystem": eco, "target": target, "verdict": "ERROR",
          "max_severity": "SAFE", "risk_score": 0, "findings": [], "info_count": 0, "error": msg}
     if cmd:
-        r["command"] = [os.path.basename(cmd[2])] + cmd[3:]
+        r["command"] = _display_command(cmd)
     return r
 
 

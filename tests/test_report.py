@@ -203,6 +203,11 @@ class EndToEnd(unittest.TestCase):
         rc, out, _ = run("tf", os.path.join(HERE, "fixtures", "detect", "terraform"), "--json")  # alias
         self.assertEqual(json.loads(out)["results"][0]["tool"], "terraform-audit")
 
+    def test_scanner_command_forces_utf8_without_leaking_interpreter_flags(self):
+        cmd = sca._cmd("npm", [NPM_OK, "--json"])
+        self.assertEqual(cmd[1:4], ["-I", "-X", "utf8"])
+        self.assertEqual(sca._display_command(cmd), ["npm_audit.py", NPM_OK, "--json"])
+
     def test_scanner_crash_is_an_error_not_a_pass(self):
         rc, out, _ = run("obsidian", os.path.join(self.tmp, "no-such-plugin"), "--json")  # exits 1, no JSON
         self.assertEqual(rc, 1)
