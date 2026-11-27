@@ -179,7 +179,7 @@ Documented in [`schema/sca-report.schema.json`](schema/sca-report.schema.json). 
 
 ```jsonc
 {
-  "schema_version": 1, "sca_version": "0.1.0", "generated": "2026-11-27T09:00:00Z",
+  "schema_version": 1, "sca_version": "0.2.0", "generated": "2026-11-27T09:00:00Z",
   "mode": "scan", "root": ".",
   "summary": {"results": 6, "by_verdict": {"SAFE": 5, "CRITICAL": 1}, "max_severity": "CRITICAL",
               "fail_on": "HIGH", "failed": true, "errors": 0, "ecosystems": ["npm", "pypi"]},
