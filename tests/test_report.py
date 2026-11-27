@@ -209,6 +209,26 @@ class EndToEnd(unittest.TestCase):
         r = json.loads(out)["results"][0]
         self.assertEqual(r["verdict"], "ERROR")
 
+    def test_mixed_safe_and_error_results_fail_closed(self):
+        safe = sca.normalise("npm", {"target": "ok", "risk_level": "SAFE", "findings": []})
+        error = sca.normalise("hf", {
+            "target": "broken", "risk_level": "SAFE", "findings": [],
+            "error": "scanner returned no results",
+        })
+        report = sca.build_report([safe, error], ".", "high")
+
+        self.assertFalse(report["summary"]["failed"], "severity gate is separate from scanner health")
+        self.assertEqual(report["summary"]["errors"], 1)
+        self.assertEqual(sca._exit_code(report), 1)
+
+    def test_unknown_scanner_verdict_fails_closed(self):
+        safe = sca.normalise("npm", {"target": "ok", "risk_level": "SAFE", "findings": []})
+        unknown = sca.normalise("crate", {"target": "odd", "risk_level": "MYSTERY", "findings": []})
+        report = sca.build_report([safe, unknown], ".", "high")
+
+        self.assertEqual(unknown["verdict"], "ERROR")
+        self.assertEqual(sca._exit_code(report), 1)
+
     def test_list_and_versions(self):
         rc, out, _ = run("list", "--json")
         rows = json.loads(out)

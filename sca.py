@@ -25,7 +25,8 @@ Output options (any command):
   -v, --verbose     list every finding (text mode) and show the commands run
 
 Exit codes: 0 nothing at or above --fail-on, 2 something is, 1 usage error / no scanner
-could run / a scanner crashed without producing a report.
+could run / any scanner returned an error. Scanner errors are fail-closed, even when other
+scanners completed successfully.
 
 Zero dependencies, Python 3.9+. MIT licensed. https://github.com/eltociear/supply-chain-audit
 """
@@ -901,12 +902,14 @@ def _emit(report, opts):
 
 
 def _exit_code(report):
+    # An incomplete scan must never pass CI. Check this before the severity gate so a
+    # mixed report (for example, one SAFE result and one scanner that returned no JSON)
+    # is still reported as an operational failure rather than a successful scan.
+    if any(r["verdict"] == "ERROR" for r in report["results"]):
+        return 1
     if report["summary"]["failed"]:
         return 2
-    if not report["results"] or all(r["verdict"] == "ERROR" for r in report["results"]):
-        return 1
-    if any(r["verdict"] == "ERROR" and (r.get("error") or "").startswith(("scanner exited", "timeout", "could not start"))
-           for r in report["results"]):
+    if not report["results"]:
         return 1
     return 0
 
