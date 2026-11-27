@@ -226,6 +226,20 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(report["summary"]["errors"], 1)
         self.assertEqual(sca._exit_code(report), 1)
 
+    def test_finding_beats_error(self):
+        bad = sca.normalise("npm", {"target": "evil", "risk_level": "CRITICAL", "findings": [
+            {"id": "env_exfil", "severity": "CRITICAL", "file": "index.js", "line": 1}]})
+        error = sca.normalise("hf", {"target": "broken", "risk_level": "SAFE", "findings": [],
+                                     "error": "scanner returned no results"})
+        report = sca.build_report([bad, error], ".", "high")
+        self.assertTrue(report["summary"]["failed"])
+        self.assertEqual(sca._exit_code(report), 2, "a found CRITICAL must not be masked by an unrelated error")
+
+    def test_error_fails_closed_even_with_fail_on_none(self):
+        error = sca.normalise("hf", {"target": "broken", "risk_level": "SAFE", "findings": [],
+                                     "error": "scanner returned no results"})
+        self.assertEqual(sca._exit_code(sca.build_report([error], ".", "none")), 1)
+
     def test_unknown_scanner_verdict_fails_closed(self):
         safe = sca.normalise("npm", {"target": "ok", "risk_level": "SAFE", "findings": []})
         unknown = sca.normalise("crate", {"target": "odd", "risk_level": "MYSTERY", "findings": []})

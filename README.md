@@ -68,9 +68,9 @@ Ecosystem names also accept the repo name and aliases (`cargo`, `go`, `composer`
 
 | Code | Meaning |
 |---|---|
-| 0 | nothing reached `--fail-on` |
-| 2 | at least one result's `max_severity` reached `--fail-on` |
-| 1 | usage error, nothing recognised, or any scanner returned an error (errors are fail-closed, even in a mixed report) |
+| 2 | at least one result's `max_severity` reached `--fail-on` (this wins even if another scanner errored, so a finding is never masked) |
+| 1 | nothing reached `--fail-on`, but there was a usage error, nothing was recognised, or any scanner returned an error (fail-closed, also with `--fail-on none`) |
+| 0 | nothing reached `--fail-on` and every scanner completed |
 
 ## What `sca scan` detects
 

@@ -22,8 +22,6 @@ class Canaries(unittest.TestCase):
         for r in self.rows:
             if r["kind"] == "malicious":
                 with self.subTest("%s/%s" % (r["eco"], r["name"])):
-                    if os.name == "nt" and (r["eco"], r["name"]) == ("blender", "mal-submodule-stealer"):
-                        self.skipTest("vendored blender-audit uses OS separators against normalized import paths")
                     self.assertTrue(r["ok"], r["why"])
 
     def test_expected_rule_survives_normalisation(self):

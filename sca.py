@@ -24,9 +24,9 @@ Output options (any command):
   -j N              concurrent scanner processes for `scan` (default 2)
   -v, --verbose     list every finding (text mode) and show the commands run
 
-Exit codes: 0 nothing at or above --fail-on, 2 something is, 1 usage error / no scanner
-could run / any scanner returned an error. Scanner errors are fail-closed, even when other
-scanners completed successfully.
+Exit codes: 2 something reached --fail-on (wins over errors), 1 usage error / no scanner
+could run / any scanner returned an error, 0 otherwise. Scanner errors are fail-closed, even
+when other scanners completed successfully and even with --fail-on none.
 
 Zero dependencies, Python 3.9+. MIT licensed. https://github.com/eltociear/supply-chain-audit
 """
@@ -913,14 +913,12 @@ def _emit(report, opts):
 
 
 def _exit_code(report):
-    # An incomplete scan must never pass CI. Check this before the severity gate so a
-    # mixed report (for example, one SAFE result and one scanner that returned no JSON)
-    # is still reported as an operational failure rather than a successful scan.
-    if any(r["verdict"] == "ERROR" for r in report["results"]):
-        return 1
+    # A finding at or above --fail-on always wins (exit 2), even when another scanner
+    # errored: an incomplete scan must not hide malware that *was* found. Otherwise an
+    # incomplete scan never passes CI (exit 1), even in a mixed report with SAFE results.
     if report["summary"]["failed"]:
         return 2
-    if not report["results"]:
+    if not report["results"] or any(r["verdict"] == "ERROR" for r in report["results"]):
         return 1
     return 0
 
