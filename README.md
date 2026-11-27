@@ -1,5 +1,7 @@
 # supply-chain-audit
 
+[![Tests](https://github.com/eltociear/supply-chain-audit/actions/workflows/tests.yml/badge.svg)](https://github.com/eltociear/supply-chain-audit/actions/workflows/tests.yml)
+
 **One CLI over 24 small supply-chain malware scanners - one per place where someone else's
 code runs on your machine before you call it.**
 
@@ -7,10 +9,12 @@ code runs on your machine before you call it.**
 
 ▶ **[Watch the 60-second demo](https://www.youtube.com/watch?v=CIgleGpAZkY)**
 
-`npm install` runs `postinstall`. `pip install` runs `setup.py`. `cargo build` runs `build.rs`.
+`npm install` can run lifecycle scripts. `pip install` can run build backends and legacy
+`setup.py` hooks. `cargo build` runs `build.rs`.
 Opening a repo in VS Code can run `.vscode/tasks.json`; enabling an Obsidian plugin runs
 `main.js` with full Node access; `from_pretrained(trust_remote_code=True)` runs whatever the
-model repo ships. None of that is a CVE, so CVE scanners do not look at it. The
+model repo ships. These behaviours may have no published advisory, so CVE-only scanners can
+miss them. The
 [eltociear/*-audit](#the-family) scanners do: each one is a single-file, zero-dependency
 Python script that reads (never runs) one ecosystem's install/load-time code and scores it
 with context rules calibrated on thousands of real popular packages.
@@ -64,9 +68,9 @@ Ecosystem names also accept the repo name and aliases (`cargo`, `go`, `composer`
 
 | Code | Meaning |
 |---|---|
-| 0 | nothing reached `--fail-on` |
-| 2 | at least one result's `max_severity` reached `--fail-on` |
-| 1 | usage error, nothing recognised, or a scanner crashed / timed out without a report (a crash is never a pass) |
+| 2 | at least one result's `max_severity` reached `--fail-on` (this wins even if another scanner errored, so a finding is never masked) |
+| 1 | nothing reached `--fail-on`, but there was a usage error, nothing was recognised, or any scanner returned an error (fail-closed, also with `--fail-on none`) |
+| 0 | nothing reached `--fail-on` and every scanner completed |
 
 ## What `sca scan` detects
 

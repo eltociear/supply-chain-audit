@@ -11,10 +11,10 @@
   "blender-audit": {
    "repo": "eltociear/blender-audit",
    "url": "https://github.com/eltociear/blender-audit",
-   "commit": "cb18c8122f2bb660a1d52a17bbbf08483beab291",
+   "commit": "ff5c4afa1f981f6c2da1bc2d1805d072442c7222",
    "script": "blender_audit.py",
-   "sha256": "81ac85121c262b16774dc124fbc1539364ee82ee9043782194282147c14eff80",
-   "synced_at": "2026-11-27T09:34:45Z"
+   "sha256": "86da03e42c64f87017dc02e88b21fbb3120091290fc47eda4d44c9bbc7dfc2ff",
+   "synced_at": "2026-11-27T14:38:19Z"
   },
   "browserext-audit": {
    "repo": "eltociear/browserext-audit",
@@ -193,5 +193,5 @@
    "synced_at": "2026-11-27T09:35:36Z"
   }
  },
- "synced_at": "2026-11-27T09:35:37Z"
+ "synced_at": "2026-11-27T14:38:19Z"
 }

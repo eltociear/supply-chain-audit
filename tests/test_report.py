@@ -203,11 +203,50 @@ class EndToEnd(unittest.TestCase):
         rc, out, _ = run("tf", os.path.join(HERE, "fixtures", "detect", "terraform"), "--json")  # alias
         self.assertEqual(json.loads(out)["results"][0]["tool"], "terraform-audit")
 
+    def test_scanner_command_forces_utf8_without_leaking_interpreter_flags(self):
+        cmd = sca._cmd("npm", [NPM_OK, "--json"])
+        self.assertEqual(cmd[1:4], ["-I", "-X", "utf8"])
+        self.assertEqual(sca._display_command(cmd), ["npm_audit.py", NPM_OK, "--json"])
+
     def test_scanner_crash_is_an_error_not_a_pass(self):
         rc, out, _ = run("obsidian", os.path.join(self.tmp, "no-such-plugin"), "--json")  # exits 1, no JSON
         self.assertEqual(rc, 1)
         r = json.loads(out)["results"][0]
         self.assertEqual(r["verdict"], "ERROR")
+
+    def test_mixed_safe_and_error_results_fail_closed(self):
+        safe = sca.normalise("npm", {"target": "ok", "risk_level": "SAFE", "findings": []})
+        error = sca.normalise("hf", {
+            "target": "broken", "risk_level": "SAFE", "findings": [],
+            "error": "scanner returned no results",
+        })
+        report = sca.build_report([safe, error], ".", "high")
+
+        self.assertFalse(report["summary"]["failed"], "severity gate is separate from scanner health")
+        self.assertEqual(report["summary"]["errors"], 1)
+        self.assertEqual(sca._exit_code(report), 1)
+
+    def test_finding_beats_error(self):
+        bad = sca.normalise("npm", {"target": "evil", "risk_level": "CRITICAL", "findings": [
+            {"id": "env_exfil", "severity": "CRITICAL", "file": "index.js", "line": 1}]})
+        error = sca.normalise("hf", {"target": "broken", "risk_level": "SAFE", "findings": [],
+                                     "error": "scanner returned no results"})
+        report = sca.build_report([bad, error], ".", "high")
+        self.assertTrue(report["summary"]["failed"])
+        self.assertEqual(sca._exit_code(report), 2, "a found CRITICAL must not be masked by an unrelated error")
+
+    def test_error_fails_closed_even_with_fail_on_none(self):
+        error = sca.normalise("hf", {"target": "broken", "risk_level": "SAFE", "findings": [],
+                                     "error": "scanner returned no results"})
+        self.assertEqual(sca._exit_code(sca.build_report([error], ".", "none")), 1)
+
+    def test_unknown_scanner_verdict_fails_closed(self):
+        safe = sca.normalise("npm", {"target": "ok", "risk_level": "SAFE", "findings": []})
+        unknown = sca.normalise("crate", {"target": "odd", "risk_level": "MYSTERY", "findings": []})
+        report = sca.build_report([safe, unknown], ".", "high")
+
+        self.assertEqual(unknown["verdict"], "ERROR")
+        self.assertEqual(sca._exit_code(report), 1)
 
     def test_list_and_versions(self):
         rc, out, _ = run("list", "--json")

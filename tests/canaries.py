@@ -29,7 +29,8 @@ def _literal_tables(path):
     """{NAME: value} for every module-level NAME = <literal> in a test file."""
     out = {}
     try:
-        tree = ast.parse(open(path, encoding="utf-8").read())
+        with open(path, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
     except (OSError, SyntaxError):
         return out
     for node in tree.body:
