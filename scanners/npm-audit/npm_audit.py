@@ -19,6 +19,7 @@ into memory and read as text.
 Usage:
   python npm_audit.py <pkg>[@version] [...]        # fetch from registry.npmjs.org and scan
   python npm_audit.py <dir|package.json|file.js>   # scan a local package / file
+  python npm_audit.py pkg-1.0.0.tgz                # scan a local tarball (npm pack output) in memory
   python npm_audit.py --lockfile package-lock.json # scan every dependency in a lockfile
   python npm_audit.py --node-modules ./node_modules  # scan each installed package
   python npm_audit.py --text "some code"           # scan a string
@@ -40,14 +41,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 REGISTRY = os.environ.get("NPM_AUDIT_REGISTRY", "https://registry.npmjs.org").rstrip("/")
 LIFECYCLE = ("preinstall", "install", "postinstall")  # run automatically on `npm install`
 SCAN_EXT = (".js", ".cjs", ".mjs", ".jsx", ".ts", ".cts", ".mts", ".sh", ".py", ".json", ".html")
-MAX_FILE = 1500000      # bytes; larger files are bundles - skipped (reported as info)
-MAX_TOTAL = 12000000    # bytes of text scanned per package
-MAX_LINE = 20000        # per-line regex window (minified bundles have megabyte lines)
+MAX_FILE = 1500000      # bytes; larger files are bundles - read only when install-time code points at them
+MAX_BIG = 16000000      # hard cap for any file (install-time payloads like Shai-Hulud's bundle.js are 3-10 MB)
+MAX_TOTAL = 12000000    # bytes of text scanned per package (install-time files are always scanned, first)
+MAX_LINE = 20000        # regex window; longer (minified) lines are scanned in overlapping windows
+WIN_OVERLAP = 400
 
 # Endpoints that legitimate packages essentially never hard-code, but stealers love:
 # chat webhooks, paste sites, request bins, tunnels and out-of-band (OAST) collectors.
@@ -62,7 +65,8 @@ EXFIL_HOST = (
 RAW_IP_URL = r"https?://(?!(?:127\.|0\.0\.0\.0|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|169\.254\.))\d{1,3}(?:\.\d{1,3}){3}"
 NET_SEND = (r"(?:https?\.request|https?\.get|require\s*\(\s*[\"'](?:node:)?(?:https?|net|dns)[\"']\s*\)\s*\.\s*\w+\s*\(|\bfetch\s*\(|axios(?:\.\w+)?\s*\(|\.post\s*\(|"
             r"XMLHttpRequest|net\.connect|new\s+net\.Socket|dns\.(?:lookup|resolve\w*)\s*\(|"
-            r"\bcurl\b|\bwget\b|request\s*\(\s*\{)")
+            r"\bcurl\b|\bwget\b|request\s*\(\s*\{|"
+            r"require\s*\(\s*[\"'](?:node:)?(?:https?|net|dgram|dns)[\"']\s*\)|from\s+[\"'](?:node:)?(?:https?|net|dgram|dns)[\"'])")
 
 PATTERNS = {
     "critical": [
@@ -74,6 +78,9 @@ PATTERNS = {
              r"wget\s+[^\n]*-O-?\s*-\s*\|\s*(?:sh|bash)",
              r"(?:sh|bash|python3?|node)\s*<\s*\(\s*(?:curl|wget)",
              r"eval\s*\(\s*(?:await\s+)?(?:\(\s*await\s+)?fetch\s*\(",
+             r"\.then\s*\(\s*(?:async\s*)?\(?\s*([\w$]+)\s*\)?\s*=>\s*\{?\s*(?:eval|new\s+Function|Function)\s*\(\s*\1\s*\.\s*(?:data|body)\b",
+             r"\b(?:eval|new\s+Function)\s*\(\s*(?:res|resp|response|r|result|ret)\.data(?:\.[\w$]+)?\s*\)",
+             r"spawn\s*\(\s*[\"'](?:node|sh|bash|python3?)[\"']\s*,\s*\[\s*\]\s*,[^\n]{0,80}stdio\s*:\s*\[\s*[\"']pipe",
              r"(?:iex|Invoke-Expression)\s*\(?\s*\(?\s*(?:New-Object\s+Net\.WebClient|iwr|Invoke-WebRequest)",
              r"powershell[^\n]{0,40}-(?:e|enc|encodedcommand)\s+[A-Za-z0-9+/=]{40,}",
          ]},
@@ -84,6 +91,10 @@ PATTERNS = {
              r"Buffer\.from\s*\(\s*JSON\.stringify\s*\(\s*process\.env",
              r"(?:Object\.(?:entries|keys)|for\s*\(\s*(?:const|let|var)\s+\w+\s+in)\s*\(?\s*process\.env\s*\)?[^\n]{0,80}(?:join|push|stringify|encodeURIComponent)",
              r"querystring\.stringify\s*\(\s*process\.env",
+             r"Object\.(?:keys|entries)\s*\(\s*process\s*\[\s*[\"'`]env[\"'`]\s*\]\s*\)\s*\.\s*(?:map|reduce|forEach)",
+             r"Object\.fromEntries\s*\(\s*Object\.(?:keys|entries)\s*\(\s*process\s*\[\s*[\"'`]env[\"'`]\s*\]",
+             r"JSON\.stringify\s*\(\s*\{\s*\.\.\.process\.env\s*\}",
+             r"\.(?:post|put|request|send)\s*\([^\n(){}]{1,120},\s*\{\s*\.\.\.process\.env\s*\}|\]\]?\s*\([^\n(){}]{1,80},\s*\{\s*\.\.\.process\.env\s*\}",
              r"\benv\s*:\s*process\.env\s*[,}][^\n]{0,200}(?:hostname|homedir|userInfo)",
          ]},
         {"id": "reverse_shell", "name": "Reverse Shell",
@@ -112,6 +123,9 @@ PATTERNS = {
              r"trufflehog[^\n]{0,80}(?:filesystem|github|--json)",
              r"github\.com/trufflesecurity/trufflehog/releases",
              r"api\.github\.com/user/repos[^\n]{0,200}(?:private|Shai|migration)",
+             r"[`'\"]npm\s+publish\s+\$\{",
+             r"\btar\s+-[a-z]*u[a-z]*f\s[^\n]{0,80}package/",
+             r"shai-hulud-workflow|[\"']Shai-Hulud(?: Migration)?[\"']",
          ]},
     ],
     "high": [
@@ -136,6 +150,9 @@ PATTERNS = {
              r"(?:eval|new\s+Function)\s*\(\s*Buffer\.from\s*\([^)]{0,4000},\s*[\"'](?:base64|hex)[\"']",
              r"(?:eval|new\s+Function)\s*\(\s*[\"'](?:\\x[0-9a-fA-F]{2}){20,}",
              r"(?:eval|new\s+Function)\s*\(\s*String\.fromCharCode\s*\(",
+             r"\brequire\s*\(\s*Buffer\.from\s*\(\s*[\"'](?:[0-9a-fA-F]{4,}[\"']\s*,\s*[\"']hex|[A-Za-z0-9+/=]{4,}[\"']\s*,\s*[\"']base64)",
+             r"\beval\s*\(\s*[\"'`]\(\s*function\s+[\w$]+\s*\([^\"'`]{200}",
+             r"while\s*\(\s*!!\[\]\s*\)\s*\{\s*try\s*\{\s*(?:const|var|let)\s+[\w$]+\s*=\s*-?parseInt\s*\(",
          ]},
         {"id": "dns_exfil", "name": "DNS Exfiltration",
          "desc": "Encodes host/user data into a DNS lookup (dependency-confusion beacon)",
@@ -198,6 +215,24 @@ EXEC_SINK_RE = re.compile(r"(?:\bexec(?:Sync|File|FileSync)?|\bspawn(?:Sync)?|\b
                           r"shell\s*:\s*true")
 _RECON = r"(?:whoami|id|hostname|uname(?:\s+-[a-z]+)?|cat\s+/etc/(?:passwd|os-release|hostname)|ifconfig|ip\s+a(?:ddr)?)"
 RECON_CHAIN_RE = re.compile(r"\b%s\s*(?:&&|;|\|\|)\s*%s\s*(?:&&|;|\|\|)\s*%s\b" % (_RECON, _RECON, _RECON))
+# Host-identity calls a dependency-confusion / recon beacon serialises and sends home.
+FINGERPRINT_RES = [re.compile(r) for r in (
+    r"\bhostname\s*\(\s*\)", r"\buserInfo\s*\(\s*\)", r"\bhomedir\s*\(\s*\)",
+    r"\bgetServers\s*\(\s*\)", r"\bnetworkInterfaces\s*\(\s*\)")]
+BARE_IP_RE = re.compile(r"[\"'`](?!(?:127\.|0\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|169\.254\.|255\.))"
+                        r"(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}[\"'`:/]")
+SEND_CALL_RE = re.compile(r"\.(?:request|get|post|write|connect|send|end)\s*\(|\bfetch\s*\(|\baxios\b|dns\.(?:lookup|resolve)", re.IGNORECASE)
+ENC_REQUIRE_RE = re.compile(r"\brequire\s*\(\s*Buffer\.from\s*\(\s*[\"'](?:[0-9a-fA-F]{4,}[\"']\s*,\s*[\"']hex|"
+                            r"[A-Za-z0-9+/=]{4,}[\"']\s*,\s*[\"']base64)")
+WALLET_SECRET_SEND_RE = re.compile(r"(?:fetch|axios(?:\.post)?|\.post)\s*\(\s*[\"'`]https?://(?!localhost|127\.)[^\"'`\s]{4,120}[\"'`]"
+                                   r"[^;]{0,400}?\b(?:seed|mnemonic|privateKey|secretKey|private_key|seedPhrase)\b", re.S)
+HIDDEN_CODE_RE = re.compile(r"[;})\]][ \t]{300,}[\w$(\[!~+-]")
+EVAL_VAR_RE = re.compile(r"\b(?:eval|new\s+Function|Function)\s*\(\s*([\w$]+)\s*\)")
+DNS_CONCAT_RE = re.compile(r"\bdns\s*\.\s*(?:lookup|resolve\w*)\s*\(\s*(?:[\w$.]+\s*\+|`[^`]*\$\{)")
+CHARCODE_ARRAY_RE = re.compile(r"(?:\d{1,3}\s*,\s*){800}")
+EVALISH_RE = re.compile(r"\beval\s*\(|\bnew\s+Function\s*\(|\bFunction\s*\(\s*[\w$]+\s*\)\s*\(")
+XOR_DECODE_RE = re.compile(r"(?:fromCharCode|Buffer\.from)\s*\([^\n;]{0,80}\^\s*(?:0x[0-9a-fA-F]+|\d+|\(|[\w$]+\s*\[)|"
+                           r"\.map\s*\(\s*\(?\s*[\w$]+\s*\)?\s*=>\s*[\w$]+\s*\^\s*(?:0x[0-9a-fA-F]+|\d+)\s*\)")
 # Chat / webhook APIs that integrations call with the user's own token: only a literal,
 # hard-coded token or webhook id makes them a collector.
 CHAT_API_RE = re.compile(r"api\.telegram\.org/bot|discord(?:app)?\.com/api/webhooks/|hooks\.slack\.com/services/", re.IGNORECASE)
@@ -205,6 +240,10 @@ HARDCODED_CHAT_RE = re.compile(r"api\.telegram\.org/bot\d{5,}:[\w-]{20,}|discord
                                r"hooks\.slack\.com/services/T\w+/B\w+/\w+", re.IGNORECASE)
 SCRIPT_FILE_RE = re.compile(r"(?:^|[\s;&|(])(?:node|sh|bash|python3?)\s+(?:-\w+\s+)*[\"']?([\w./\\-]+\.(?:c?js|mjs|sh|py))")
 INLINE_NODE_RE = re.compile(r"\bnode\s+(?:-e|--eval|-p)\s")
+GYP_CMD_RE = re.compile(r"<!@?\(\s*([^)\n]{1,300})\)")
+# relative module / script references inside install-time files
+REF_RE = re.compile(r"(?:require\s*\(|import\s*\(|\bfrom\s+|\bimport\s+)\s*[\"'`](\.{1,2}/[\w./-]+)[\"'`]|"
+                    r"[\"'`]((?:\.{0,2}/)?[\w./-]*[\w-]+\.(?:c?js|mjs))[\"'`]")
 # Ordinary lifecycle commands seen across the top of the registry: native builds,
 # prebuilt-binary fetchers, git hooks, funding banners. Context, not risk.
 BENIGN_SCRIPT = re.compile(
@@ -216,12 +255,21 @@ BENIGN_SCRIPT = re.compile(
 def _scan_text(text, path, findings, info, install_ctx):
     """Line-oriented pattern pass plus file-level combination rules."""
     lines = text.split("\n")
+    wins = []  # (line number, window text): minified megabyte lines become overlapping windows
+    for n, line in enumerate(lines, 1):
+        if len(line) <= MAX_LINE:
+            wins.append((n, line))
+        else:
+            for k in range(0, len(line), MAX_LINE - WIN_OVERLAP):
+                wins.append((n, line[k:k + MAX_LINE]))
     seen = set()
     for sev, pg, rx in _COMPILED:
-        for n, line in enumerate(lines, 1):
+        if not rx.search(text):
+            continue  # one pass over the whole file rules most patterns out cheaply
+        for n, line in wins:
             if pg["id"] in ("network", "env_read", "child_process") and (pg["id"], 0) in seen:
                 break  # one context hit per file is enough
-            m = rx.search(line[:MAX_LINE])
+            m = rx.search(line)
             if not m:
                 continue
             if pg["id"] in COMMENT_BLIND and COMMENT_LINE_RE.match(line):
@@ -232,9 +280,10 @@ def _scan_text(text, path, findings, info, install_ctx):
             seen.add(key)
             if pg["id"] in ("network", "env_read", "child_process"):
                 seen.add((pg["id"], 0))
+            ctx = line if len(line) <= 200 else line[max(0, m.start() - 80):m.end() + 120]
             item = {"severity": sev.upper(), "id": pg["id"], "name": pg["name"],
                     "description": pg["desc"], "file": path, "line": n,
-                    "matched": m.group(0)[:120], "context": line.strip()[:200]}
+                    "matched": m.group(0)[:120], "context": ctx.strip()[:200], "_w": line}
             (info if sev == "info" else findings).append(item)
 
     ids = {k[0] for k in seen}
@@ -245,7 +294,7 @@ def _scan_text(text, path, findings, info, install_ctx):
     if "download_execute" in ids and not install_ctx and path.endswith(JS_EXT):
         for f in findings:
             if (f["id"] == "download_execute" and f["file"] == path and f["line"]
-                    and not EXEC_SINK_RE.search(lines[f["line"] - 1][:MAX_LINE])):
+                    and not EXEC_SINK_RE.search(f.get("_w", ""))):
                 f["severity"] = "INFO"
                 f["description"] += " [string only: not passed to exec/spawn]"
         _demote(findings, info)
@@ -256,13 +305,13 @@ def _scan_text(text, path, findings, info, install_ctx):
             if (f["id"] == "worm_propagation" and f["file"] == path
                     and re.match(r"npm\s+publish", f["matched"]) and not TOKEN_WORD_RE.search(f["matched"])
                     and not (path.endswith(JS_EXT) and f["line"]
-                             and EXEC_SINK_RE.search(lines[f["line"] - 1][:MAX_LINE]))):
+                             and EXEC_SINK_RE.search(f.get("_w", "")))):
                 f["severity"] = "INFO"
                 f["description"] += " [release script, no token]"
         _demote(findings, info)
     # Combination rules ----------------------------------------------------------------
     # env dump with no network sink anywhere in the file is a debug print, not exfil.
-    if "env_exfil" in ids and not has_net:
+    if "env_exfil" in ids and not has_net and not (SEND_CALL_RE.search(text) and (install_ctx or ENC_REQUIRE_RE.search(text))):
         for f in findings:
             if f["id"] == "env_exfil" and f["file"] == path:
                 f["severity"] = "INFO"
@@ -289,7 +338,7 @@ def _scan_text(text, path, findings, info, install_ctx):
     m = RECON_CHAIN_RE.search(text) if has_net else None
     if m:
         ln = text.count("\n", 0, m.start())
-        if EXEC_SINK_RE.search(lines[ln][:MAX_LINE]):
+        if EXEC_SINK_RE.search(_line_window(text, m)):
             findings.append({"severity": "HIGH", "id": "recon_beacon", "name": "Host Recon Beacon",
                              "description": "Runs a chain of host-identity commands and sends data out in the same file",
                              "file": path, "line": ln + 1, "matched": m.group(0)[:120],
@@ -302,12 +351,104 @@ def _scan_text(text, path, findings, info, install_ctx):
         findings.append({"severity": "HIGH", "id": "obfuscation", "name": "Obfuscated Payload",
                          "description": "javascript-obfuscator style code (%d _0x identifiers)" % obf,
                          "file": path, "line": 0, "matched": "", "context": "file-level"})
+    # host-fingerprint beacon: hostname/username/homedir/DNS servers/interfaces collected in a
+    # file that sends data. Three identity calls + a send, or two + a hard-coded public IP /
+    # collector / install-time execution: the dependency-confusion "callback" shape.
+    nfp = sum(1 for rx in FINGERPRINT_RES if rx.search(text))
+    md = DNS_CONCAT_RE.search(text) if nfp else None
+    if md and "dns_exfil" not in ids:
+        findings.append({"severity": "HIGH", "id": "dns_exfil", "name": "DNS Exfiltration",
+                         "description": "Builds a DNS name from host-identity data and resolves it (DNS callback beacon)",
+                         "file": path, "line": text.count("\n", 0, md.start()) + 1, "matched": md.group(0)[:120],
+                         "context": _line_window(text, md, 80).strip()[:200]})
+    elif (install_ctx and nfp == 1 and re.search(r"\buserInfo\s*\(\s*\)", text) and has_net
+            and SEND_CALL_RE.search(text) and "JSON.stringify" in text):
+        nfp = 2  # install-time code posting the username is the beacon even without a second field
+    if nfp >= 2 and has_net and SEND_CALL_RE.search(text):
+        strong = _dest_ip(text) or EXFIL_RE.search(text) or install_ctx
+        if strong or (nfp >= 3 and len(text) <= 500000):  # big CLI bundles carry telemetry
+            findings.append({"severity": "HIGH", "id": "host_fingerprint_exfil", "name": "Host Fingerprint Beacon",
+                             "description": "Collects %d host-identity values (hostname, username, home dir, DNS "
+                                            "servers, interfaces) in a file that sends data out" % nfp,
+                             "file": path, "line": 0, "matched": "", "context": "file-level combination"})
+    # require() of an encoded module name: hides `os`/`https`/`child_process` from grep
+    me = ENC_REQUIRE_RE.search(text)
+    if me:
+        findings.append({"severity": "HIGH", "id": "obfuscation", "name": "Obfuscated Payload",
+                         "description": "require() of a hex/base64/char-code encoded module name",
+                         "file": path, "line": text.count("\n", 0, me.start()) + 1, "matched": me.group(0)[:120],
+                         "context": _line_window(text, me, 80).strip()[:200]})
+    # code pushed off-screen by hundreds of spaces (the 2025 react-native-aria/gluestack payloads)
+    mh = HIDDEN_CODE_RE.search(text) if path.endswith(JS_EXT) else None
+    if mh:
+        findings.append({"severity": "HIGH", "id": "hidden_code", "name": "Code Hidden Past Whitespace",
+                         "description": "Statement padded with hundreds of spaces so it renders off-screen",
+                         "file": path, "line": text.count("\n", 0, mh.start()) + 1, "matched": "",
+                         "context": text[mh.end() - 1:mh.end() + 120].strip()[:200]})
+    # wallet seed / mnemonic / private key posted to a hard-coded URL (xrpl 2025 backdoor shape)
+    mw = WALLET_SECRET_SEND_RE.search(text[:MAX_BIG])
+    if mw:
+        findings.append({"severity": "HIGH", "id": "wallet_secret_exfil", "name": "Wallet Secret Exfiltration",
+                         "description": "Sends a seed / mnemonic / private key to a hard-coded URL",
+                         "file": path, "line": text.count("\n", 0, mw.start()) + 1, "matched": mw.group(0)[:120],
+                         "context": mw.group(0)[:200].replace("\n", " ")})
+    # install-time beacon to a hard-coded public IP (net.Socket / http.request to '1.2.3.4')
+    if install_ctx and has_net and SEND_CALL_RE.search(text):
+        mi = _dest_ip(text)
+        if mi and "raw_ip_url" not in ids:
+            findings.append({"severity": "MEDIUM", "id": "raw_ip_url", "name": "Raw-IP Destination",
+                             "description": "Install-time code sends to a hard-coded public IP address",
+                             "file": path, "line": text.count("\n", 0, mi.start()) + 1, "matched": mi.group(0)[:60],
+                             "context": _line_window(text, mi, 80).strip()[:200]})
+    # eval of a body accumulated from a network response: remote code execution
+    if has_net:
+        for mv in EVAL_VAR_RE.finditer(text):
+            near = text[max(0, mv.start() - 1500):mv.start()]
+            if re.search(r"\b%s\s*\+=\s*[\w$]+" % re.escape(mv.group(1)), near) and re.search(r"\.on\s*\(\s*[\"']data", near):
+                findings.append({"severity": "CRITICAL", "id": "download_execute", "name": "Download & Execute",
+                                 "description": "eval()s a body accumulated from a network response",
+                                 "file": path, "line": text.count("\n", 0, mv.start()) + 1, "matched": mv.group(0)[:120],
+                                 "context": _line_window(text, mv, 80).strip()[:200]})
+                break
+    # eval of a decoder over a huge char-code array (the wrapper on 2026 compromised-lib payloads)
+    if "fromCharCode" in text and EVALISH_RE.search(text) and CHARCODE_ARRAY_RE.search(text[:4000000]):
+        findings.append({"severity": "HIGH", "id": "obfuscation", "name": "Obfuscated Payload",
+                         "description": "eval/Function over a decoded char-code array",
+                         "file": path, "line": 0, "matched": "", "context": "file-level"})
+    # XOR string decoder feeding a process / network sink (hides the C2 host and commands)
+    mx = XOR_DECODE_RE.search(text)
+    if mx and (EXEC_SINK_RE.search(text) and "child_process" in text or has_net):
+        findings.append({"severity": "MEDIUM", "id": "xor_decoder", "name": "XOR String Decoder",
+                         "description": "Decodes XOR-masked strings in a file that also spawns processes or sends data",
+                         "file": path, "line": text.count("\n", 0, mx.start()) + 1, "matched": mx.group(0)[:120],
+                         "context": _line_window(text, mx, 80).strip()[:200]})
     # Install-time escalation: anything HIGH that runs automatically on `npm install` is CRITICAL
     if install_ctx:
         for f in findings:
             if f["file"] == path and f["severity"] in ("HIGH", "MEDIUM") and f["id"] != "auth_bypass":
                 f["severity"] = "CRITICAL"
                 f["description"] += " [runs at install time]"
+
+
+DEST_CTX_RE = re.compile(r"(?:host(?:name)?|\bip|server|addr(?:ess)?|connect|request|url|target|c2)\w*[\"'`]?\s*[:=(,]\s*[\"'`]?$|"
+                         r"\.connect\s*\([^)]{0,40}$", re.IGNORECASE)
+
+
+def _dest_ip(text):
+    """First quoted public IPv4 literal used as a destination (host key, port suffix, connect arg)."""
+    for m in BARE_IP_RE.finditer(text):
+        tail = text[m.end() - 1:m.end() + 7]
+        if re.match(r":\d{2,5}", tail) or DEST_CTX_RE.search(text[max(0, m.start() - 40):m.start() + 1]):
+            return m
+    return None
+
+
+def _line_window(text, m, w=MAX_LINE // 2):
+    """The part of the match's line within w chars of it (bounded on minified code)."""
+    ls = text.rfind("\n", 0, m.start()) + 1
+    le = text.find("\n", m.end())
+    le = len(text) if le < 0 else le
+    return text[max(ls, m.start() - w):min(le, m.end() + w)]
 
 
 def _demote(findings, info):
@@ -345,7 +486,48 @@ def _lifecycle(pkg_json, files, findings, info):
         for m in SCRIPT_FILE_RE.finditer(cmd):
             p = os.path.normpath(m.group(1).replace("\\", "/")).lstrip("./")
             run_files.add(p)
-    return run_files
+    # node-gyp runs automatically for any package with a binding.gyp and no install script;
+    # `<!(node file.js)` command expansions in it execute at install time.
+    gyp = files.get("binding.gyp")
+    if gyp and not any(isinstance(scripts.get(h), str) and scripts.get(h).strip() for h in ("install", "preinstall")):
+        for m in GYP_CMD_RE.finditer(gyp):
+            cmd = m.group(1)
+            info.append({"severity": "INFO", "id": "install_script", "name": "Install Script",
+                         "description": "binding.gyp command expansion runs on npm install", "file": "binding.gyp",
+                         "line": 0, "matched": cmd[:120], "context": cmd[:200]})
+            for fm in SCRIPT_FILE_RE.finditer(" " + cmd):
+                p = os.path.normpath(fm.group(1).replace("\\", "/")).lstrip("./")
+                if p in files:
+                    run_files.add(p)
+                    findings.append({"severity": "MEDIUM", "id": "gyp_exec", "name": "binding.gyp Runs Package Code",
+                                     "description": "binding.gyp command expansion executes a package file at install time",
+                                     "file": "binding.gyp", "line": 0, "matched": cmd[:120], "context": cmd[:200]})
+    return _follow_refs(run_files, files)
+
+
+def _follow_refs(run_files, files, depth=2, cap=12):
+    """Files an install script runs often just spawn/require the real payload: follow
+    relative require()/import/spawn('node', [...'x.js']) references two hops."""
+    out, frontier = set(run_files), set(run_files)
+    for _ in range(depth):
+        nxt = set()
+        for rf in frontier:
+            text = files.get(rf)
+            if not text or len(text) > MAX_FILE:
+                continue
+            base = os.path.dirname(rf)
+            for m in REF_RE.finditer(text[:200000]):
+                ref = (m.group(1) or m.group(2)).replace("\\", "/")
+                for cand in (os.path.normpath(os.path.join(base, ref)), os.path.normpath(ref).lstrip("./")):
+                    for c in (cand, cand + ".js", cand + "/index.js", cand + ".cjs", cand + ".mjs"):
+                        if c in files and c not in out and c != "package.json":
+                            nxt.add(c)
+                            break
+        frontier = nxt
+        out |= nxt
+        if len(out) > cap:
+            break
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -510,21 +692,44 @@ def scan_package(files, label="", ecosystem=None):
     eco = ecosystem or detect_ecosystem(pkg_json)
     declared = _declared_n8n(files, pkg_json) if eco == ECO_N8N else set()
     run_files = _lifecycle(pkg_json, files, findings, info)
+    _remote_deps(pkg_json, findings)
     total = 0
-    for path, text in sorted(files.items()):
-        if path == "package.json" or path.endswith((".d.ts", ".map")):
+    for path, text in sorted(files.items(), key=lambda kv: (kv[0] not in run_files, len(kv[1]) > MAX_FILE, kv[0])):
+        if path == "package.json" or path.endswith((".d.ts", ".map", ".gyp")):
+            continue
+        if len(text) > MAX_FILE and path not in run_files and not BIG_FILES:
+            info.append({"severity": "INFO", "id": "skipped_bundle", "name": "Large File Skipped",
+                         "description": "Over %d bytes and not run at install time" % MAX_FILE,
+                         "file": path, "line": 0, "matched": "", "context": ""})
             continue
         if path.endswith(".json"):
             continue  # data files: only package.json scripts matter
         if path.endswith(".html") and (eco != ECO_NODE_RED or (path[:-5] + ".js") not in files):
             continue  # a Node-RED editor template sits next to its node .js; other HTML is docs/demo pages
-        total += len(text)
+        if len(text) > MAX_FILE and path not in run_files and total + len(text) > MAX_TOTAL:
+            info.append({"severity": "INFO", "id": "skipped_bundle", "name": "Large File Skipped",
+                         "description": "Over %d bytes, not run at install time, and over the package budget" % MAX_FILE,
+                         "file": path, "line": 0, "matched": "", "context": ""})
+            continue
+        total += len(text) if path not in run_files else 0
         if total > MAX_TOTAL:
             info.append({"severity": "INFO", "id": "truncated", "name": "Scan Truncated",
                          "description": "Package exceeds %d bytes of text" % MAX_TOTAL,
                          "file": path, "line": 0, "matched": "", "context": ""})
             break
-        _scan_text(text, path, findings, info, path in run_files)
+        if len(text) > MAX_FILE and path not in run_files:
+            # A multi-megabyte bundle nobody runs at install time contains every capability
+            # (telemetry, env plumbing, .npmrc handling): keep only payload-specific signals.
+            tmp = []
+            _scan_text(text, path, tmp, info, False)
+            for f in tmp:
+                if f["id"] not in BIG_STRICT:
+                    f["severity"] = "INFO"
+                    f["description"] += " [large bundle: capability signal only]"
+            findings.extend(tmp)
+            _demote(findings, info)
+        else:
+            _scan_text(text, path, findings, info, path in run_files)
         if (eco and path.endswith((".js", ".cjs", ".mjs", ".ts", ".html")) and not TEST_PATH_RE.search(path)
                 and not (path.endswith(".html") and (path[:-5] + ".js") not in files)):
             n_info = len(info)
@@ -555,9 +760,37 @@ def scan_package(files, label="", ecosystem=None):
     return r
 
 
+BIG_FILES = True   # also scan >MAX_FILE files that no install script runs (strict rule subset)
+BIG_STRICT = {"worm_propagation", "obfuscation", "hidden_code", "wallet_secret_exfil", "reverse_shell",
+              }
+DEP_FIELDS = ("dependencies", "optionalDependencies", "peerDependencies", "devDependencies")
+# hosts a dependency URL may legitimately point at
+DEP_URL_OK = re.compile(r"^(?:git\+)?https?://(?:[\w-]+\.)*(?:github\.com|githubusercontent\.com|gitlab\.com|bitbucket\.org|"
+                        r"registry\.npmjs\.org|registry\.yarnpkg\.com|npm\.pkg\.github\.com|codeload\.github\.com|"
+                        r"pkg\.pr\.new|cdn\.sheetjs\.com)(?:[:/]|$)", re.IGNORECASE)
+
+
+def _remote_deps(pkg_json, findings):
+    """A dependency installed from an arbitrary http(s) URL fetches code from outside the registry
+    (and outside npm's malware takedowns) - a common way to keep the payload off npm."""
+    pj = pkg_json if isinstance(pkg_json, dict) else {}
+    for field in DEP_FIELDS[:2]:
+        deps = pj.get(field)
+        if not isinstance(deps, dict):
+            continue
+        for name, spec in deps.items():
+            if isinstance(spec, str) and re.match(r"(?:git\+)?https?://", spec.strip(), re.I) and not DEP_URL_OK.match(spec.strip()):
+                findings.append({"severity": "HIGH", "id": "remote_dependency", "name": "Off-Registry Dependency URL",
+                                 "description": "%s installs from a non-registry URL" % field,
+                                 "file": "package.json#%s" % field, "line": 0, "matched": ("%s: %s" % (name, spec))[:120],
+                                 "context": ("%s: %s" % (name, spec))[:200]})
+
+
 def _summarise(findings, info, label, pkg_json=None):
     counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
     score = 0
+    for f in findings + info:
+        f.pop("_w", None)
     for f in findings:
         counts[f["severity"]] += 1
         score += SEVERITY_SCORE[f["severity"].lower()]
@@ -610,24 +843,46 @@ def fetch_manifest(name, version="latest"):
     return json.loads(_get("%s/%s/%s" % (REGISTRY, q, urllib.parse.quote(version, safe=""))))
 
 
+def _wanted(name, size):
+    """Same file filter for registry tarballs, local tarballs and extracted sample archives."""
+    low = name.lower()
+    if name == "binding.gyp":
+        return size <= MAX_FILE
+    if not (low.endswith(SCAN_EXT) or "/" not in name and "." not in name):
+        return False
+    if low.endswith(".json") and name != "package.json":
+        return False
+    return size <= MAX_BIG
+
+
 def files_from_tarball(data):
+    """data: the bytes of an npm .tgz (registry tarball or `npm pack` output)."""
     out = {}
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tf:
         for m in tf.getmembers():
             if not m.isfile():
                 continue
             name = m.name.split("/", 1)[1] if "/" in m.name else m.name
-            low = name.lower()
-            if not (low.endswith(SCAN_EXT) or "/" not in name and "." not in name):
-                continue
-            if low.endswith(".json") and name != "package.json":
-                continue
-            if m.size > MAX_FILE:
+            if not _wanted(name, m.size):
                 continue
             f = tf.extractfile(m)
             if f:
                 out[name] = f.read().decode("utf-8", "replace")
     return out
+
+
+def audit_tarball(path, ecosystem=None):
+    """Scan a local .tgz / .tar.gz without extracting it to disk."""
+    with open(path, "rb") as fh:
+        files = files_from_tarball(fh.read())
+    label = path
+    try:
+        pj = json.loads(files.get("package.json") or "{}")
+        if pj.get("name"):
+            label = "%s@%s (%s)" % (pj["name"], pj.get("version", "?"), os.path.basename(path))
+    except ValueError:
+        pass
+    return scan_package(files, label, ecosystem)
 
 
 def files_from_dir(root):
@@ -637,10 +892,8 @@ def files_from_dir(root):
         for fn in fns:
             p = os.path.join(dp, fn)
             rel = os.path.relpath(p, root).replace(os.sep, "/")
-            if not fn.lower().endswith(SCAN_EXT) or (fn.endswith(".json") and rel != "package.json"):
-                continue
             try:
-                if os.path.getsize(p) > MAX_FILE:
+                if not _wanted(rel, os.path.getsize(p)):
                     continue
                 with open(p, encoding="utf-8", errors="replace") as fh:
                     out[rel] = fh.read()
@@ -763,7 +1016,9 @@ def main(argv=None):
             if os.path.isdir(a):
                 targets.append((a, (lambda p=a: scan_package(files_from_dir(p), p, eco))))
             elif os.path.isfile(a):
-                if os.path.basename(a) == "package.json":
+                if a.lower().endswith((".tgz", ".tar.gz", ".tar")):
+                    targets.append((a, (lambda p=a: audit_tarball(p, eco))))
+                elif os.path.basename(a) == "package.json":
                     targets.append((a, (lambda p=a: scan_package(files_from_dir(os.path.dirname(p) or "."), p, eco))))
                 else:
                     targets.append((a, (lambda p=a: scan_package({os.path.basename(p): open(p, encoding="utf-8", errors="replace").read()}, p, eco))))

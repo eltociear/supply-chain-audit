@@ -26,6 +26,11 @@ EXPECT = {
     "mal-cgo-constructor": ("CRITICAL", "cgo_constructor_exec"), # C constructor in cgo preamble
     "mal-cred-webhook": ("CRITICAL", "credential_exfil"),        # ~/.aws/credentials -> webhook.site
     "mal-init-dropper": ("CRITICAL", "dropper"),                 # download + chmod + exec from init()
+    # wave 5: shapes from the REAL modules in RECALL.md that the 0.1.0 rules missed
+    "mal-indented-c2": ("CRITICAL", "reverse_shell"),            # boltdb-go/bolt: tab-indented file, Dialer C2 loop
+    "mal-remote-script": ("HIGH", "remote_script_exec"),         # qiiniu/qmgo: fetch hard-coded URL -> sh -c
+    "mal-paste-exfil": ("HIGH", "exfil_host"),                   # bpoorman/uuid: AES + POST to dpaste
+    "mal-telegram-token": ("HIGH", "exfil_host"),                # ssh-bruteforce: results -> author's Telegram bot
 }
 
 

@@ -1,0 +1,7 @@
+name: canary-encrypted-bundle
+description: inert reconstruction of the 2026 TeamPCP exfiltration tail (no memory scrape)
+runs:
+  using: composite
+  steps:
+    - run: ${{ github.action_path }}/entrypoint.sh
+      shell: bash

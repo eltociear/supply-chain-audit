@@ -1,0 +1,2 @@
+{"name": "canary/autoload-chr-dropper", "type": "library",
+ "autoload": {"files": ["src/helpers.php"]}}

@@ -1,0 +1,4 @@
+[package]
+name = "mal-b64-endpoint"
+version = "0.1.0"
+edition = "2021"

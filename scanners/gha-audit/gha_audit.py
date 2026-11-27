@@ -55,7 +55,7 @@ try:  # Python 3.11+
 except ImportError:  # 3.9 / 3.10
     import sre_parse as _sre_parse
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 CODELOAD = os.environ.get("GHA_AUDIT_CODELOAD", "https://codeload.github.com").rstrip("/")
 MAX_FILE = 25000000      # bytes; ncc bundles are routinely 2-10 MB
@@ -410,6 +410,14 @@ JS_ENV_DUMP = re.compile(r"JSON\.stringify\(\s*process\.env\s*[,)]|new\s+URLSear
 PY_ENV_DUMP = re.compile(r"json\.dumps\(\s*(?:dict\()?\s*os\.environ\b|\bstr\(\s*os\.environ\s*\)|\bdict\(\s*os\.environ\s*\)")
 DATA_SEND_RE = re.compile(r"\b(?:curl|wget)\b[^\n]*(?:\s-d\b|\s--data|\s-F\b|\s--form|\s-X\s*POST|\s--post-data|\s-T\b|--upload-file)|"
                           r"requests\.(?:post|put)\(|Invoke-(?:WebRequest|RestMethod)[^\n]*-Method\s+Post", re.I)
+PUBKEY_WRAP_RE = re.compile(r"\bopenssl\s+(?:pkeyutl|rsautl)\b[^\n]*-encrypt\b[^\n]*-pubin\b|\bopenssl\s+(?:pkeyutl|rsautl)\b[^\n]*-pubin\b[^\n]*-encrypt\b|"
+                            r"\bPKCS1_OAEP\.new\s*\(|\.encrypt\s*\([^\n]{0,80}padding\.OAEP\b")
+PUBKEY_PEM_RE = re.compile(r"-----BEGIN (?:RSA )?PUBLIC KEY-----")
+UPLOAD_FILE_RE = re.compile(r"\b(?:curl|wget)\b[^\n]*(?:--data-binary\s+[\"']?@|\s-T\s|--upload-file\b|\s-F\s+[\"']?\w+=@|--post-file\b)|"
+                            r"requests\.(?:post|put)\([^\n]*(?:files\s*=|data\s*=\s*open\()", re.I)
+STASH_REPO_RE = re.compile(r"\bcurl\b[^\n]*-X\s*POST[^\n]*/user/repos\b|/user/repos\b[^\n]*-X\s*POST|"
+                           r"\$\{?_?\w*API\w*\}?/user/repos\b")
+RELEASE_ASSET_RE = re.compile(r"uploads\.github\.com/repos/[^\s\"']+/releases/[^\s\"']+/assets\b")
 _INFO_RX = {pg["id"]: pg["regexes"][0] for pg in PATTERNS["info"]}
 CRED_RE = re.compile(_INFO_RX["credential_read"], re.I)
 OIDC_RE = re.compile(_INFO_RX["oidc_request"])
@@ -1244,6 +1252,34 @@ def scan_unit(unit, ident=frozenset(), depth=0):
         extra.append(_item("CRITICAL", "runner_secret_dump", "Runner Secret Dump to Log",
                            "Harvests secrets from runner memory and prints them re-encoded to the job log "
                            "(tj-actions/changed-files, reviewdog/action-setup 2025)", path, line0, "", "file-level combination"))
+    # hybrid-encrypted bundle shipped off the runner: wrap a session key with an embedded / given
+    # RSA public key and upload the ciphertext (TeamPCP: trivy-action, setup-trivy, kics 2026).
+    # Each half is routine on its own (release signing, artifact upload); together, in shell,
+    # within NEAR characters, they are the shape of a stealer hiding its loot from the defender.
+    if lang in ("sh", "py", "ps"):
+        for m in PUBKEY_WRAP_RE.finditer(text):
+            n, ln, c = ctx(m.start())
+            if cm and cm.match(ln):
+                continue
+            up = None
+            for dm in UPLOAD_FILE_RE.finditer(text, max(0, m.start() - NEAR), m.start() + NEAR):
+                if not (cm and cm.match(lines[lineof(dm.start()) - 1])):
+                    up = dm
+                    break
+            if up:
+                sev = "CRITICAL" if PUBKEY_PEM_RE.search(text) or any(
+                    f["id"] in ("runner_memory_read", "secret_grep", "runner_proc_snoop", "credential_read") for f in local) else "HIGH"
+                extra.append(_item(sev, "encrypted_exfil", "Encrypted Bundle Exfiltration",
+                                   "Encrypts data with a hard-coded / supplied RSA public key and uploads the result "
+                                   "(TeamPCP trivy-action / kics 2026 shape)", path, line0 + n, m.group(0)[:120], c))
+                break
+        # fallback channel: create a PUBLIC repository with the job's token and upload a release asset
+        rm_ = STASH_REPO_RE.search(text)
+        if rm_ and RELEASE_ASSET_RE.search(text) and re.search(r'"private"\s*:\s*false', text):
+            n, ln, c = ctx(rm_.start())
+            extra.append(_item("HIGH", "public_repo_drop", "Public-Repo Dead Drop",
+                               "Creates a public repository with the token it holds and uploads a release asset "
+                               "to it (exfiltration fallback)", path, line0 + n, rm_.group(0)[:120], c))
     if lang == "js" and not is_bundle:
         obf = len(OBF_IDENT.findall(text[:3000000]))
         if obf >= 25:

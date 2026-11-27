@@ -28,19 +28,22 @@ Usage:
   python terraform_audit.py github.com/<owner>/<repo>[?ref=<ref>]          # a GitHub source
   python terraform_audit.py <dir|file.tf|file.tf.json|script.sh>           # local
   python terraform_audit.py --text 'provisioner "local-exec" { command = "curl x | sh" }'
-  add --json for machine-readable output, --verbose to print INFO context,
+  add --json (family schema) or --sarif (SARIF 2.1.0) for machine-readable output,
+  --fail-on {critical,high,medium,low,never}, --version, --verbose to print INFO context,
   --all to include examples/ and tests/
 
-Exit code 2 if any target is HIGH or CRITICAL (CI-friendly).
+Exit code 2 if any target reaches --fail-on (default HIGH; CI-friendly), 1 on usage errors.
 No dependencies beyond the standard library. MIT licensed.
 """
 import base64
 import bisect
+import hashlib
 import io
 import json
 import os
 import posixpath
 import re
+import stat
 import sys
 import tarfile
 import time
@@ -49,7 +52,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 REGISTRY = os.environ.get("TERRAFORM_AUDIT_REGISTRY", "https://registry.terraform.io").rstrip("/")
 HCL_EXT = (".tf", ".tofu")
@@ -207,7 +210,13 @@ PATTERNS = {
 SEVERITY_SCORE = {"critical": 25, "high": 15, "medium": 8, "low": 3, "info": 0}
 SEV_ORDER = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0, "SAFE": 0}
 SEV_NAMES = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
-_COMPILED = [(sev.upper(), pg, re.compile(rx, re.IGNORECASE)) for sev, groups in PATTERNS.items()
+# `keyword[^\n]*tail` is O(keywords x line length) on one-line (minified / padded) files: a 5 MB
+# line with many `curl ` tokens never finished. Same-line spans are bounded to 4,000 chars.
+# `\s*\(?\s*\(?\s*` backtracks cubically on long whitespace runs; `\s*(?:\(\s*){0,2}` matches the
+# same strings in linear time.
+_BOUND = lambda rx: (rx.replace(r"[^\n]*", r"[^\n]{0,4000}")
+                     .replace(r"\s*\(?\s*\(?\s*", r"\s*(?:\(\s*){0,2}").replace(r"\s*\(?\s*", r"\s*(?:\(\s*)?"))
+_COMPILED = [(sev.upper(), pg, re.compile(_BOUND(rx), re.IGNORECASE)) for sev, groups in PATTERNS.items()
              for pg in groups for rx in pg["regexes"]]
 NET_RE = re.compile(NET_SEND, re.IGNORECASE)
 EXFIL_RE = re.compile(EXFIL_HOST, re.IGNORECASE)
@@ -519,7 +528,71 @@ def _json_sites(path, text):
 DATA_EXEC = {"external": "external", "http": "http", "shell_script": "shell", "shell_command": "shell",
              "local_command": "shell", "command": "shell", "exec": "shell", "shell": "shell"}
 CTX_RANK = {"plan": 4, "apply": 3, "remote": 1, "deployed": 0}
-SCRIPT_REF_RE = re.compile(r"([\w./${}\-]*?([\w.\-]+\.(?:sh|bash|zsh|py|ps1|psm1|bat|cmd|js|rb|pl)))\b")
+_SCRIPT_REF = re.compile(r"([\w./${}\-]*?([\w.\-]+\.(?:sh|bash|zsh|py|ps1|psm1|bat|cmd|js|rb|pl)))\b")
+_PATH_TOKEN = re.compile(r"[\w./${}\-]+")
+
+
+_EXTS = ("sh", "bash", "zsh", "py", "ps1", "psm1", "bat", "cmd", "js", "rb", "pl")   # _SCRIPT_REF order
+_C2 = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-")
+
+
+class _RefMatch:
+    def __init__(self, text, s, q, e):
+        self.text, self.s, self.q, self.e = text, s, q, e
+
+    def group(self, i=0):
+        return self.text[self.s:self.e] if i in (0, 1) else self.text[self.q:self.e]
+
+    def start(self, i=0):
+        return self.q if i == 2 else self.s
+
+    def end(self, i=0):
+        return self.e
+
+
+class _ScriptRef:
+    """Linear-time equivalent of _SCRIPT_REF.finditer(text).
+
+    The regex (lazy path prefix + greedy [\\w.-]+ + .ext) is cubic on long runs of word
+    characters: a 20 kB one-line .py never finished. A match never leaves one token of path
+    characters; inside it the regex picks, from the current start s, the first run of [\\w.-]
+    (at or after s) holding a '.ext' + word boundary with at least one char before the dot,
+    preferring the right-most dot, then the alternatives in pattern order. That is replicated
+    here directly (checked against the regex in tests/test_family_extra.py)."""
+
+    def _word(self, ch):
+        return ch.isalnum() or ch == "_"
+
+    def finditer(self, text):
+        for tok in _PATH_TOKEN.finditer(text):
+            s, end = tok.start(), tok.end()
+            while s < end:
+                hit, a = None, s
+                while a < end and hit is None:
+                    while a < end and text[a] not in _C2:
+                        a += 1
+                    b = a
+                    while b < end and text[b] in _C2:
+                        b += 1
+                    q = a   # group 2 starts at the run start (or s, which is <= a)
+                    for k in range(b - 1, q, -1):
+                        if text[k] != ".":
+                            continue
+                        for ext in _EXTS:
+                            e = k + 1 + len(ext)
+                            if text.startswith(ext, k + 1) and (e >= len(text) or not self._word(text[e])):
+                                hit = (q, e)
+                                break
+                        if hit:
+                            break
+                    a = b
+                if hit is None:
+                    break
+                yield _RefMatch(text, s, hit[0], hit[1])
+                s = hit[1] if hit[1] > s else s + 1
+
+
+SCRIPT_REF_RE = _ScriptRef()
 LOCAL_REF_RE = re.compile(r"\blocal\.([A-Za-z_][\w-]*)")
 VAR_REF_RE = re.compile(r"\bvar\.([A-Za-z_][\w-]*)")
 MUTABLE_REF = re.compile(r"^(?:main|master|develop|dev|trunk|HEAD|latest|release|stable)$")
@@ -557,9 +630,13 @@ def _match_patterns(text, path, line_of, base_pos, out, kind):
             if key in lines_seen:
                 continue
             lines_seen.add(key)
-            ls = text.rfind("\n", 0, m.start()) + 1
-            le = text.find("\n", m.end())
-            le = len(text) if le < 0 else le
+            # context = the match's line, clipped to +-300 chars: on a one-line file the full-line
+            # rfind/find/strip per match made this O(matches x n) (80 kB took 34 s)
+            lo = max(0, m.start() - 300)
+            ls = text.rfind("\n", lo, m.start()) + 1 or lo
+            hi = min(len(text), m.end() + 300)
+            le = text.find("\n", m.end(), hi)
+            le = hi if le < 0 else le
             out.append(_item(sev, pg["id"], pg["name"], pg["desc"], path, key[1], m.group(0),
                              text[ls:le], kind))
             ids.add(pg["id"])
@@ -942,30 +1019,40 @@ def _get(url, timeout=90, tries=4, want_resp=False):
 def files_from_archive(data, subdir=""):
     out = {}
     sub = subdir.strip("/")
+    budget = ArchiveBudget()
 
-    def add(name, read):
+    def add(name, read, size=0):
+        name = safe_member(name)
+        if not name:   # traversal / absolute / drive-letter / NUL member names
+            return
         p = name.split("/", 1)[1] if "/" in name else name
         if sub:
             if not p.startswith(sub + "/"):
                 return
             p = p[len(sub) + 1:]
-        if KEEP_RE.search(p):
+        if KEEP_RE.search(p) and budget.take(size):
             out[p] = read().decode("utf-8", "replace")
     if data[:2] == b"PK":
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             names = zf.namelist()
             flat = not all("/" in n for n in names)
             for zi in zf.infolist():
-                if not zi.is_dir() and zi.file_size <= MAX_FILE:
-                    add(("x/" + zi.filename) if flat else zi.filename, lambda zi=zi: zf.read(zi))
+                name = safe_member(zi.filename)   # checked before the flat-zip "x/" prefix is added
+                if name and not zi.is_dir() and zi.file_size <= MAX_FILE and not stat.S_ISLNK(zi.external_attr >> 16):
+                    add(("x/" + name) if flat else name, lambda zi=zi: zf.read(zi), zi.file_size)
         return out
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tf:
-        for m in tf.getmembers():
-            if m.isfile() and m.size <= MAX_FILE:
+        for m in tf:
+            if m.isreg() and m.size <= MAX_FILE:
                 fh = tf.extractfile(m)
                 if fh:
-                    add(m.name, fh.read)
+                    add(m.name, fh.read, m.size)
     return out
+
+
+def _read_blob(p, cap=500000000):
+    with open(p, "rb") as fh:
+        return fh.read(cap)
 
 
 def files_from_dir(root):
@@ -975,13 +1062,13 @@ def files_from_dir(root):
         for fn in fns:
             p = os.path.join(dp, fn)
             rel = os.path.relpath(p, root).replace(os.sep, "/")
-            if not KEEP_RE.search(fn):
+            if not KEEP_RE.search(fn) or not regular_file(p):   # symlinks, FIFOs, devices: never opened
                 continue
             try:
                 if os.path.getsize(p) > MAX_FILE:
                     continue
-                with open(p, encoding="utf-8", errors="replace") as fh:
-                    out[rel] = fh.read()
+                with open(p, "rb") as fh:
+                    out[rel] = fh.read(MAX_FILE).decode("utf-8", "replace")
             except OSError:
                 pass
     return out
@@ -1058,15 +1145,229 @@ def _print(r, verbose):
             print("    info     %s  %s:%s  %s" % (f["name"], f["file"], f["line"], f["context"][:80]))
 
 
+# ---------------------------------------------------------------------------
+# Pipeline output shared by the eltociear/*-audit family: --json / --sarif / --fail-on
+# (this block is kept identical across the family; see "Output formats" in the README)
+# ---------------------------------------------------------------------------
+FAMILY_SCHEMA = "eltociear-audit/1"
+TOOL_NAME = "terraform-audit"
+TOOL_URI = "https://github.com/eltociear/terraform-audit"
+FAIL_ON_CHOICES = ("critical", "high", "medium", "low", "never")
+_FAM_RANK = {"SAFE": 0, "INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+_FAM_SARIF_LEVEL = {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note", "INFO": "note"}
+_FAM_SEC_SEV = {"CRITICAL": "9.5", "HIGH": "8.0", "MEDIUM": "5.5", "LOW": "3.0", "INFO": "0.0"}
+
+
+def family_args(args):
+    """Strip the shared output flags from argv. Returns (remaining_args, opts)."""
+    opts = {"json": False, "sarif": False, "fail_on": "high"}
+    rest, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a == "--json":
+            opts["json"] = True
+        elif a == "--sarif":
+            opts["sarif"] = True
+        elif a == "--fail-on" or a.startswith("--fail-on="):
+            if "=" in a:
+                v = a.split("=", 1)[1]
+            else:
+                v = args[i + 1] if i + 1 < len(args) else ""
+                i += 1
+            if v.lower() not in FAIL_ON_CHOICES:
+                sys.stderr.write("%s: --fail-on must be one of %s\n" % (TOOL_NAME, ", ".join(FAIL_ON_CHOICES)))
+                raise SystemExit(1)
+            opts["fail_on"] = v.lower()
+        else:
+            rest.append(a)
+        i += 1
+    return rest, opts
+
+
+def _fam_sev(s):
+    s = str(s or "").upper()
+    return s if s in _FAM_RANK else "INFO"
+
+
+def _fam_line(v):
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        m = re.search(r"(\d+)\s*$", str(v or ""))
+        n = int(m.group(1)) if m else 0
+    return n if n > 0 else 0
+
+
+def family_finding(f, target):
+    out = dict(f) if isinstance(f, dict) else {"name": str(f)}
+    rid = str(out.get("id") or out.get("rule_id") or out.get("pattern") or "finding")
+    out.update({"rule_id": rid, "severity": _fam_sev(out.get("severity")),
+                "name": str(out.get("name") or rid), "description": str(out.get("description") or ""),
+                "file": str(out.get("file") or out.get("path") or ""), "line": _fam_line(out.get("line")),
+                "matched": str(out.get("matched") or ""), "context": str(out.get("context") or "")})
+    return out
+
+
+def family_result(r):
+    out = dict(r)
+    target = str(out.get("target") or "")
+    findings = [family_finding(f, target) for f in (out.get("findings") or [])]
+    info = [family_finding(f, target) for f in (out.get("info") or [])]
+    worst = max([_FAM_RANK[f["severity"]] for f in findings] + [_FAM_RANK.get(str(out.get("risk_level") or "").upper(), 0)])
+    level = next(k for k in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "SAFE") if _FAM_RANK[k] == worst)
+    counts = {k: sum(1 for f in findings if f["severity"] == k) for k in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
+    out.update({"target": target, "risk_level": level, "risk_score": int(out.get("risk_score") or 0),
+                "error": out.get("error") or None, "counts": counts, "findings": findings, "info": info})
+    return out
+
+
+def family_exit(results, fail_on="high"):
+    """0 = below the threshold, 2 = a target reached it. Default threshold HIGH (the historic behaviour)."""
+    if fail_on == "never":
+        return 0
+    worst = max([_FAM_RANK[family_result(r)["risk_level"]] for r in results] or [0])
+    return 2 if worst >= _FAM_RANK[fail_on.upper()] else 0
+
+
+def family_json(results, fail_on="high"):
+    res = [family_result(r) for r in results]
+    worst = max([_FAM_RANK[r["risk_level"]] for r in res] or [0])
+    return {"schema": FAMILY_SCHEMA, "tool": {"name": TOOL_NAME, "version": __version__},
+            "fail_on": fail_on, "exit_code": family_exit(results, fail_on),
+            "max_severity": next(k for k in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "SAFE") if _FAM_RANK[k] == worst),
+            "errors": sum(1 for r in res if r["error"]), "results": res}
+
+
+def _fam_uri(target, file):
+    """Repo-relative URI when the target is a local path, else the in-package path."""
+    file = (file or "").replace("\\", "/")
+    t = target or ""
+    if t and os.path.isdir(t):
+        p = os.path.normpath(os.path.join(t, file)) if file else os.path.normpath(t)
+        parts = file.split("/")
+        for k in range(1, len(parts)):   # scanner-side prefixes (e.g. custom_components/<d>/) not on disk
+            if not os.path.exists(p) and os.path.exists(os.path.join(t, *parts[k:])):
+                p = os.path.normpath(os.path.join(t, *parts[k:]))
+    elif t and os.path.isfile(t) and (not file or file == t or file == os.path.basename(t)):
+        p = os.path.normpath(t)
+    elif t and os.path.isfile(t):
+        p = os.path.normpath(t).replace("\\", "/") + "/" + file  # member of a local archive
+    else:
+        p = file or t or "unknown"
+    p = p.replace("\\", "/")
+    if os.path.isabs(p):
+        try:
+            rel = os.path.relpath(p)
+        except ValueError:
+            rel = None
+        if rel is not None and not rel.startswith(".."):
+            p = rel.replace("\\", "/")
+        else:
+            return "file://" + urllib.parse.quote(p, safe="/:")
+    parts = [s for s in p.split("/") if s not in ("", ".", "..")]
+    return urllib.parse.quote("/".join(parts) or "unknown", safe="/@+,;=-._~")
+
+
+def family_sarif(results):
+    rules, index, out, notes = [], {}, [], []
+    for r in (family_result(x) for x in results):
+        if r["error"]:
+            notes.append({"level": "error", "message": {"text": "%s: %s" % (r["target"], r["error"])}})
+        for f in r["findings"]:
+            sev, rid = f["severity"], f["rule_id"]
+            if rid not in index:
+                index[rid] = len(rules)
+                rules.append({"id": rid, "name": "".join(w.capitalize() for w in re.split(r"[^A-Za-z0-9]+", rid) if w) or "Finding",
+                              "shortDescription": {"text": f["name"]},
+                              "fullDescription": {"text": f["description"] or f["name"]},
+                              "helpUri": TOOL_URI + "#readme",
+                              "defaultConfiguration": {"level": _FAM_SARIF_LEVEL[sev]},
+                              "properties": {"tags": ["security", TOOL_NAME], "security-severity": _FAM_SEC_SEV[sev]}})
+            else:
+                rule = rules[index[rid]]
+                if float(_FAM_SEC_SEV[sev]) > float(rule["properties"]["security-severity"]):
+                    rule["properties"]["security-severity"] = _FAM_SEC_SEV[sev]
+                    rule["defaultConfiguration"]["level"] = _FAM_SARIF_LEVEL[sev]
+            phys = {"artifactLocation": {"uri": _fam_uri(r["target"], f["file"])}}
+            if f["line"]:
+                phys["region"] = {"startLine": f["line"]}
+                if f["context"]:
+                    phys["region"]["snippet"] = {"text": f["context"]}
+            msg = "%s: %s%s" % (sev, f["description"] or f["name"], (" [%s]" % f["matched"]) if f["matched"] else "")
+            fp = "%s|%s|%s|%s" % (r["target"], rid, f["file"], f["matched"] or f["line"])
+            out.append({"ruleId": rid, "ruleIndex": index[rid], "level": _FAM_SARIF_LEVEL[sev],
+                        "message": {"text": msg}, "locations": [{"physicalLocation": phys}],
+                        "partialFingerprints": {"auditFinding/v1": hashlib.sha256(fp.encode("utf-8", "replace")).hexdigest()[:32]},
+                        "properties": {"severity": sev, "target": r["target"]}})
+    return {"$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
+            "runs": [{"tool": {"driver": {"name": TOOL_NAME, "version": __version__, "semanticVersion": __version__,
+                                          "informationUri": TOOL_URI, "rules": rules}},
+                      "invocations": [{"executionSuccessful": not notes, "toolExecutionNotifications": notes}],
+                      "results": out}]}
+
+
+def family_emit(results, opts):
+    """Print --json / --sarif output (if requested) and return the process exit code."""
+    if opts.get("sarif"):
+        print(json.dumps(family_sarif(results), indent=1, ensure_ascii=False))
+    elif opts.get("json"):
+        print(json.dumps(family_json(results, opts["fail_on"]), indent=1, ensure_ascii=False))
+    return family_exit(results, opts["fail_on"])
+
+
+# ---------------------------------------------------------------------------
+# Untrusted-input hygiene shared by the family (nothing is ever extracted to disk)
+# ---------------------------------------------------------------------------
+MAX_MEMBERS = 50000             # archive entries considered per target
+MAX_ARCHIVE_TOTAL = 300000000   # decompressed bytes read per archive (zip/tar bomb budget)
+
+
+def safe_member(name):
+    """Normalise an archive member name; None for traversal (../), absolute, drive or NUL paths."""
+    n = (name or "").replace("\\", "/")
+    if "\x00" in n or n.startswith("/") or re.match(r"^[A-Za-z]:", n):
+        return None
+    parts = [p for p in n.split("/") if p not in ("", ".")]
+    if not parts or ".." in parts:
+        return None
+    return "/".join(parts)
+
+
+def regular_file(path):
+    """True only for a real regular file (no symlinks, FIFOs, devices or sockets)."""
+    try:
+        return stat.S_ISREG(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+class ArchiveBudget:
+    """Caps entries and total decompressed bytes read from one archive."""
+
+    def __init__(self, total=None, members=None):
+        self.left = MAX_ARCHIVE_TOTAL if total is None else total
+        self.members = MAX_MEMBERS if members is None else members
+        self.truncated = False
+
+    def take(self, size):
+        self.members -= 1
+        if self.members < 0 or size > self.left:
+            self.truncated = True
+            return False
+        self.left -= size
+        return True
+
+
 def main(argv=None):
     args = list(sys.argv[1:] if argv is None else argv)
     if not args or args[0] in ("-h", "--help"):
         print(__doc__)
         return 0
     if args[0] == "--version":
-        print(__version__)
+        print(TOOL_NAME, __version__)
         return 0
-    as_json = "--json" in args
+    args, fam = family_args(args)
+    as_json = fam["json"] or fam["sarif"]
     verbose = "--verbose" in args or "-v" in args
     include_all = "--all" in args
     args = [a for a in args if a not in ("--json", "--verbose", "-v", "--all")]
@@ -1080,10 +1381,10 @@ def main(argv=None):
                 targets.append((a, (lambda p=a: scan_module(files_from_dir(p), p, include_all))))
             elif os.path.isfile(a):
                 if a.endswith((".tar.gz", ".tgz", ".zip", ".tar")):
-                    targets.append((a, (lambda p=a: scan_module(files_from_archive(open(p, "rb").read()), p, include_all))))
+                    targets.append((a, (lambda p=a: scan_module(files_from_archive(_read_blob(p)), p, include_all))))
                 else:
                     targets.append((a, (lambda p=a: scan_module(
-                        {os.path.basename(p): open(p, encoding="utf-8", errors="replace").read()}, p, True))))
+                        {os.path.basename(p): _read_blob(p, MAX_FILE).decode("utf-8", "replace")}, p, True))))
             elif _is_registry_spec(a):
                 targets.append((a, (lambda s=a: audit_registry(s, include_all))))
             else:
@@ -1103,9 +1404,7 @@ def main(argv=None):
         results.append(r)
         if SEV_ORDER[r["risk_level"]] > SEV_ORDER[worst]:
             worst = r["risk_level"]
-    if as_json:
-        print(json.dumps(results if len(results) != 1 else results[0], indent=1))
-    return 2 if SEV_ORDER[worst] >= SEV_ORDER["HIGH"] else 0
+    return family_emit(results, fam)
 
 
 if __name__ == "__main__":

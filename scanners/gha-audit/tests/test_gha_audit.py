@@ -33,6 +33,9 @@ EXPECT = {
     "mal-cred-exfil": ("CRITICAL", {"credential_exfil"}),
     "mal-proc-environ": ("HIGH", {"runner_proc_snoop"}),
     "mal-py-env": ("CRITICAL", {"env_exfil"}),
+    # TeamPCP 2026 (trivy-action / setup-trivy / kics): AES session key wrapped with an embedded RSA
+    # key, bundle POSTed off-host, public-repo release asset as the fallback
+    "mal-encrypted-bundle": ("CRITICAL", {"encrypted_exfil", "public_repo_drop"}),
 }
 
 

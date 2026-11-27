@@ -51,13 +51,22 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 REPO = os.environ.get("PACKAGIST_AUDIT_REPO", "https://repo.packagist.org").rstrip("/")
 SCAN_EXT = (".php", ".phtml", ".inc", ".module", ".php5", ".php7", ".phps")
 MAX_FILE = 1500000      # bytes; larger files are generated data tables - skipped
 MAX_TOTAL = 24000000    # bytes of text scanned per package
 MAX_ZIP = 150000000     # bytes downloaded per dist
+JS_HEAD = 65536         # bytes read from a shipped .js (only to spot an obfuscated payload a script runs)
+# javascript-obfuscator output: _0x-prefixed hex identifiers everywhere
+JS_OBF_RE = re.compile(r"\b_0x[0-9a-f]{4,6}\b")
+# a shipped script named in a string literal of code that runs unasked
+SHIPPED_SCRIPT_RE = re.compile(r"['\"/]([\w.-]+\.(?:sh|bash))['\"]")
+# shell: fetch, mark executable, run the downloaded file by variable
+SH_DL_RE = re.compile(r"\b(?:curl|wget)\b[^\n]*(?:-o|-O|>)", re.I)
+SH_RUN_VAR_RE = re.compile(r"^\s*(?:exec\s+|nohup\s+)?\"?\$\{?\w+\}?\"?\s+[\"$\w./-]+|^\s*exec\s+\"?\$", re.M)
+JS_RUNTIME_RE = re.compile(r"oven-sh/bun/releases|bun\.sh/install|nodejs\.org/dist/|deno\.land/install|github\.com/denoland/deno/releases", re.I)
 SKIP_DIR = re.compile(r"(?:^|/)(?:tests?|Tests?|spec|specs|examples?|Examples?|docs?|Docs?|fixtures?|Fixtures?|"
                       r"stubs?|Stubs?|benchmarks?|Benchmarks?|\.github|vendor|node_modules)/")
 # test harnesses and fixtures outside a tests/ dir: run-tests.php, ruleset-test.inc, FooTest.php
@@ -492,6 +501,21 @@ def _encoded_name_hits(code):
         joined = "".join(_PIECE_RE.findall(m.group(0))).lower()
         if joined in DANGEROUS_FN:
             hits.append((m.start(), "split string forming %s()" % joined))
+    # junk-character padding stripped at runtime: f("z", "", "zbazsze64"."_zdzeczodze") (Godzilla shells)
+    for jm in re.finditer(r"\(\s*['\"]([^'\"\n]{1,3})['\"]\s*,\s*['\"]{2}\s*,\s*((?:['\"]\w{1,40}['\"]\s*\.?\s*){1,6})\)", code):
+        cand = "".join(_PIECE_RE.findall(jm.group(2))).replace(jm.group(1), "").lower()
+        if cand in DANGEROUS_FN or cand in ("str_replace", "create_function", "assert"):
+            hits.append((jm.start(), "padded string forming %s() (strips %r)" % (cand, jm.group(1))))
+            break
+    # strrev('ced').strrev('edo') ... : reversed fragments concatenated into a function name
+    if "strrev" in code:
+        for cm in re.finditer(r"(?:(?:strrev\s*\(\s*)?['\"]\w{1,20}['\"]\s*\)?\s*\.\s*){1,6}(?:strrev\s*\(\s*)?['\"]\w{1,20}['\"]\s*\)?", code, re.I):
+            out = ""
+            for tm in re.finditer(r"(strrev\s*\(\s*)?['\"](\w{1,20})['\"]", cm.group(0), re.I):
+                out += tm.group(2)[::-1] if tm.group(1) else tm.group(2)
+            if out.lower() in DANGEROUS_FN or out.lower() in ("base64_decode", "create_function", "rename", "wp_create_user"):
+                hits.append((cm.start(), "reversed fragments forming %s()" % out))
+                break
     return hits
 
 
@@ -627,6 +651,45 @@ def _scan_text(text, path, findings, info, ctx, kind="php", ptype=""):
             (blob or "decode_use" in ids or net()):
         add("CRITICAL" if ctx in ESCALATING else "HIGH", "dropper", "Download/Unpack & Execute (dropper)",
             "Fetches or decodes a payload, writes it, marks it executable and runs it")
+    if kind == "shell" and "dropper" not in ids and SH_DL_RE.search(code) and _G['CHMOD_RE'](code, low) \
+            and SH_RUN_VAR_RE.search(code):
+        rt = JS_RUNTIME_RE.search(code)
+        add("HIGH", "dropper", "Download & Execute (dropper)",
+            "Shell script downloads a file, marks it executable and runs it%s" % (
+                " (fetches a JavaScript runtime: %s)" % rt.group(0) if rt else ""))
+    # request input -> variable -> command / code sink (the one-line webshell, written in two lines)
+    if "webshell" not in ids and re.search(SUPERGLOBAL, code):
+        for vm in re.finditer(r"\$(\w+)\s*=\s*(?:@\s*)?(?:(?:" + DECODER + r"|trim|stripslashes)\s*\(\s*)*" + SUPERGLOBAL, code, re.I):
+            v = re.escape(vm.group(1))
+            sm = re.search(r"(?:\b(?:exec|shell_exec|system|passthru|popen|proc_open|eval|assert|create_function)\s*\(\s*"
+                           r"(?:['\"][^'\"]*['\"]\s*,\s*)?|`)\s*\$%s\b|\$%s\s*\(" % (v, v), code[vm.end():vm.end() + 3000], re.I)
+            if sm:
+                n = line_of(vm.end() + sm.start())
+                add("CRITICAL", "webshell", "Webshell (request input executed)",
+                    "Request input stored in $%s reaches %s" % (vm.group(1), sm.group(0).strip()[:40]), n,
+                    sm.group(0)[:80], lines[n - 1])
+                break
+    # interpreter dropper: fetch a payload, write it to a file, run that file with php / cscript / node
+    if "dropper" not in ids and net() and _G['WRITE_RE'](skel, low):
+        wv = {m.group(1) for m in re.finditer(r"file_put_contents\s*\(\s*\$(\w+)", code, re.I)}
+        for m in re.finditer(r"(?:exec|shell_exec|system|passthru|popen|proc_open)\s*\(\s*[\"'][^\n]{0,40}?"
+                             r"\b(?:php|cscript|wscript|node|bun|python3?|bash|sh)\b[^\n]{0,20}?\$(\w+)", code, re.I):
+            if m.group(1) in wv:
+                add("HIGH", "dropper", "Download & Run (dropper)",
+                    "Downloads a payload, writes it to $%s and runs it with an interpreter" % m.group(1),
+                    line_of(m.start()), m.group(0)[:120], lines[line_of(m.start()) - 1])
+                break
+    # array_map('chr', [104, 116, ...]): a string (usually the C2 host) hidden as char codes
+    for m in re.finditer(r"array_map\s*\(\s*['\"]chr['\"]\s*,\s*(?:array\s*\(|\[)\s*((?:\d{1,3}\s*,\s*){5,}\d{1,3})", code, re.I):
+        try:
+            hidden = "".join(chr(int(x)) for x in re.findall(r"\d+", m.group(1)))
+        except ValueError:
+            continue
+        if re.search(r"^[\w.-]+\.[a-z]{2,}$|https?://|/bin/|eval|system|exec", hidden, re.I) and net():
+            add("HIGH", "obfuscation", "Obfuscated Payload",
+                "Hides a string as character codes (decodes to %r) in code that talks to the network" % hidden[:60],
+                line_of(m.start()), m.group(0)[:80], lines[line_of(m.start()) - 1])
+            break
     # obfuscation: encoded dangerous names / hex strings / chr chains / blobs feeding a dynamic call
     strong_dyn = "eval_use" in ids or "create_function" in ids or _G['CALLER_RE'](skel, low) or _G['DYN_EXEC_RE'](skel, low)
     dyn = strong_dyn or _G['DYN_CALL_RE'](skel, low)
@@ -801,6 +864,36 @@ def scan_package(files, label="", exec_only=False):
     cmds = [c for v in scripts.values() for c in _as_list(v) if isinstance(c, str) and not re.match(r"^\s*@?[\w\\]+::\w+\s*$", c)]
     if cmds:
         _scan_text("\n".join(cmds), "composer.json#scripts", findings, info, "root-script", "shell", ptype)
+    by_base = {}
+    for p in files:
+        by_base.setdefault(p.rsplit("/", 1)[-1], []).append(p)
+    for path, c in list(ctx.items()):
+        if c not in ESCALATING or not path.endswith(SCAN_EXT):
+            continue
+        text = files.get(path, "")
+        if not EXEC_RE.search(text):
+            continue
+        for m in SHIPPED_SCRIPT_RE.finditer(text):
+            for sp in by_base.get(m.group(1), []):
+                if sp not in ctx:
+                    ctx[sp] = c
+                    summary.setdefault("shipped_scripts", []).append(sp)
+                    n = text.count("\n", 0, m.start()) + 1
+                    findings.append(_item("MEDIUM", "runs_shipped_script", "Runs a Shipped Script",
+                                          "Code that %s executes %s from the package" % (CTX_NOTE[c], sp),
+                                          path, n, m.group(0), ""))
+    for path, c in list(ctx.items()):
+        if not path.endswith(".sh"):
+            continue
+        for m in re.finditer(r"([\w.-]+\.js)\b", files.get(path, "")):
+            for jp in by_base.get(m.group(1), []):
+                head = files.get(jp, "")
+                if len(JS_OBF_RE.findall(head[:JS_HEAD])) >= 50:
+                    findings.append(_item("CRITICAL", "obfuscated_js_payload", "Obfuscated JavaScript Payload",
+                                          "%s (which %s) runs %s, an obfuscated (javascript-obfuscator) script" % (
+                                              path, CTX_NOTE.get(c, "runs as a composer script"), jp),
+                                          path, 0, m.group(1), ""))
+                    break
     total = 0
     phars = []
     for path in sorted(files, key=lambda p: (p not in ctx, p)):
@@ -1032,6 +1125,10 @@ def files_from_zip(data):
             if name.endswith(".phar"):
                 out[name] = ""
                 continue
+            if name.endswith(".js") and name.count("/") <= 2 and not SKIP_DIR.search(name):
+                with zf.open(i) as fh:
+                    out[name] = fh.read(JS_HEAD).decode("utf-8", "replace")
+                continue
             if i.file_size > MAX_FILE:
                 continue
             if name != "composer.json" and not name.endswith(SCAN_EXT + (".sh",)):
@@ -1049,6 +1146,13 @@ def files_from_dir(root):
             rel = os.path.relpath(p, root).replace(os.sep, "/")
             if fn.endswith(".phar"):
                 out[rel] = ""
+                continue
+            if fn.endswith(".js") and rel.count("/") <= 2 and not SKIP_DIR.search(rel):
+                try:
+                    with open(p, encoding="utf-8", errors="replace") as fh:
+                        out[rel] = fh.read(JS_HEAD)
+                except OSError:
+                    pass
                 continue
             if rel != "composer.json" and not fn.endswith(SCAN_EXT + (".sh",)):
                 continue

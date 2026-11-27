@@ -1,0 +1,8 @@
+{
+  "name": "ok-git-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "forked": "github:someone/forked#v1.2.3",
+    "lib": "https://github.com/someone/lib/archive/v1.tar.gz"
+  }
+}

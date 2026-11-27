@@ -33,10 +33,13 @@ Usage:
 Exit code 2 if any target is HIGH or CRITICAL (CI-friendly).
 No dependencies beyond the standard library (Python 3.9+). MIT licensed.
 """
+import base64
 import bisect
+import bz2
 import gzip
 import io
 import json
+import lzma
 import os
 import posixpath
 import re
@@ -49,9 +52,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 INDEX = os.environ.get("PYPI_AUDIT_INDEX", "https://pypi.org/pypi").rstrip("/")
 CODE_EXT = (".py", ".pyw", ".sh", ".bash", ".ps1", ".bat", ".cmd")
@@ -92,8 +96,8 @@ NET_SEND = (
     r"\burlretrieve\s*\(|HTTPS?Connection\s*\(|\bhttpx\.(?:get|post|put|request|stream|Client|AsyncClient)\s*\(|"
     r"\baiohttp\.ClientSession\b|\burllib3\.(?:PoolManager|request)\b|\bpycurl\.|\bsocket\.(?:create_connection|socket)\s*\(|"
     r"\bgethostbyname(?:_ex)?\s*\(|\bgetaddrinfo\s*\(|\bdns\.resolver\.|\bsmtplib\.SMTP|\bftplib\.FTP\b|"
-    r"\bcurl\s+(?:-[a-zA-Z-]+\s+){0,6}['\"]?https?://|\bwget\s+(?:-[a-zA-Z-]+\s+){0,6}['\"]?https?://|"
-    r"Invoke-WebRequest|DownloadFile\s*\(|\.sendto\s*\()"
+    r"\bcurl(?:\.exe)?\s+(?:-[a-zA-Z-]+\s+){0,6}['\"]?https?://|\bwget\s+(?:-[a-zA-Z-]+\s+){0,6}['\"]?https?://|"
+    r"Invoke-WebRequest|DownloadFile\s*\(|\.sendto\s*\(|\[\s*['\"](?:curl|wget)['\"]\s*,)"
 )
 EXEC_SINK = (r"(?:\bos\.system\s*\(|\bos\.popen\s*\(|\bsubprocess\.\w+\s*\(|\bPopen\s*\(|\bcheck_output\s*\(|"
              r"\bcheck_call\s*\(|\bcall\s*\(\s*\[|\bexec\s*\(|\beval\s*\(|\bos\.exec\w+\s*\(|\bos\.spawn\w*\s*\(|"
@@ -102,20 +106,27 @@ _DECODE_MOD = r"(?:base64|zlib|marshal|codecs|lzma|bz2|gzip|binascii|pickle)"
 _IMPORTED_DECODE = r"(?:__import__\s*\(\s*['\"]%s['\"]\s*\)|%s)" % (_DECODE_MOD, _DECODE_MOD)
 _COMPILE = r"(?:(?:__import__\s*\(\s*['\"]builtins['\"]\s*\)\s*\.\s*)?compile\s*\(\s*)?"
 _EXEC_FN = r"(?:\bexec|\beval|__import__\s*\(\s*['\"]builtins['\"]\s*\)\s*\.\s*(?:exec|eval)|getattr\s*\(\s*__builtins__\w*\s*,\s*['\"](?:exec|eval)['\"]\s*\))"
-CHECKSUM = r"(?:sha256|sha512|sha384|sha1\b|blake2|md5|hexdigest|checksum|expected_hash|hashlib)"
+# an integrity CHECK, not just a hash: a digest compared with something, or a named checksum. A bare
+# `import hashlib` / a hash used as a keystream (seen in a dropper) is not verification.
+CHECKSUM = (r"(?:(?:hexdigest|digest)\s*\(\s*\)\s*(?:!=|==)|(?:!=|==)\s*[\w.]*(?:hexdigest|digest)\s*\(|compare_digest|"
+            r"checksum|expected_(?:hash|sha\w*|digest|md5)|sha256sum|shasum|--hash[= ]|verify_(?:hash|checksum|sha\w*)|"
+            r"\b(?:sha\d+|md5|digest|hash)\w*\s*(?:!=|==)|(?:!=|==)\s*(?:sha\d+|md5|digest|hash)\w*\b)")
 
 PATTERNS = {
     "critical": [
         {"id": "download_execute", "name": "Download & Execute",
          "desc": "Fetches remote content and runs it (pipe to shell, exec of a downloaded body)",
-         "needles": ["curl", "wget", "iex", "invoke-expression", "powershell", "exec", "eval"],
+         "needles": ["curl", "wget", "iex", "invoke-expression", "powershell", "exec", "eval", "invoke-webrequest", "iwr", "downloadfile"],
          "regexes": [
              r"curl\s+[^\n|;\"']{0,300}\|\s*(?:sudo\s+)?(?:sh|bash|zsh|python[\d.]*)\b",
              r"wget\s+[^\n|;\"']{0,300}\|\s*(?:sudo\s+)?(?:sh|bash|zsh|python[\d.]*)\b",
              r"(?:sh|bash|python[\d.]*)\s*<\s*\(\s*(?:curl|wget)",
-             _EXEC_FN + r"\s*\(\s*(?:\w+\.)*(?:urlopen|get|urlretrieve)\s*\([^\n]{0,200}\)\s*\.\s*(?:read\s*\(\s*\)|text|content)",
+             _EXEC_FN + r"\s*\(\s*(?:\w+\.)*(?:\w*urlopen\w*|get|urlretrieve)\s*\([^\n]{0,200}\)\s*\.\s*(?:read\s*\(\s*\)|text|content)",
              _EXEC_FN + r"\s*\(\s*requests\.get\s*\(",
              r"(?:iex|Invoke-Expression)\s*\(?\s*\(?\s*(?:New-Object\s+Net\.WebClient|iwr|Invoke-WebRequest)",
+             r"(?:Invoke-WebRequest|\biwr\b|DownloadFile)[^\n]{0,300}(?:Invoke-Expression|\biex\b|Start-Process|\bstart\s+['\"]?[~$%\w])",
+             # curl URL -o file && start file / ./file / chmod +x file
+             r"\b(?:curl|wget)(?:\.exe)?\s[^\n]{0,300}(?:-o|--output|-O|--output-document)\s*['\"]?[\w.\\/%~${}:-]+['\"]?\s*(?:&&|;|\|\||&)\s*(?:start\b|\./|chmod\b|sh\b|bash\b|python|powershell|cmd\b|nohup\b)",
              r"powershell[^\n]{0,60}-(?:e|enc|encodedcommand)\s+['\"]?[A-Za-z0-9+/=]{40,}",
          ]},
         {"id": "env_exfil", "name": "Environment Dump",
@@ -160,10 +171,14 @@ PATTERNS = {
          "regexes": [EXFIL_HOST]},
         {"id": "obfuscated_exec", "name": "Exec of Encoded Payload",
          "desc": "exec/eval of base64 / zlib / marshal / hex / char-code / Fernet-decoded data (W4SP-style)",
-         "needles": ["exec", "eval"],
+         "needles": ["exec", "eval", "getattr", "system", "popen", "subprocess"],
          "regexes": [
              _EXEC_FN + r"\s*\(\s*" + _COMPILE + _IMPORTED_DECODE + r"\s*\.\s*\w+\s*\(",
-             _EXEC_FN + r"\s*\(\s*" + _COMPILE + r"(?:b64decode|b85decode|a85decode|b32decode|decompress|unhexlify)\s*\(",
+             _EXEC_FN + r"\s*\(\s*" + _COMPILE + r"(?:\w+\s*\.\s*){0,2}(?:b64decode|b85decode|a85decode|b32decode|decompress|unhexlify|loads)\s*\(",
+             # eval("\x65\x76\x61\x6c") - fetching exec/eval/compile by an escaped name (BlankOBF and friends)
+             r"\b(?:eval|exec|getattr)\s*\(\s*(?:__builtins__\w*\s*,\s*)?['\"](?:\\(?:x[0-9a-fA-F]{2}|[0-7]{2,3})){3,}['\"]\s*[,)]",
+             # os.system(b64decode(...)) / subprocess.run(decode(...)): a shell command hidden in an encoding
+             r"(?:\bos\.system|\bos\.popen|\bsubprocess\.\w+|\bPopen)\s*\(\s*(?:\w+\s*\.\s*)?(?:b64decode|b64d|b32decode|unhexlify|decrypt)\s*\(",
              _EXEC_FN + r"\s*\(\s*" + _COMPILE + r"(?:bytes|bytearray)\.fromhex\s*\(",
              _EXEC_FN + r"\s*\(\s*" + _COMPILE + r"['\"]{2}\s*\.\s*join\s*\(\s*(?:map\s*\(\s*chr|\[?\s*chr\s*\()",
              _EXEC_FN + r"\s*\(\s*" + _COMPILE + r"Fernet\s*\(",
@@ -171,6 +186,18 @@ PATTERNS = {
              r"\bexec\s*\(\s*(?:compile\s*\(\s*)?['\"]{2}\s*\.\s*join\s*\(",
              _EXEC_FN + r"\s*\(\s*" + _COMPILE + r"['\"](?:\\x[0-9a-fA-F]{2}){20,}",
          ]},
+        {"id": "obfuscator", "name": "Malware Obfuscator",
+         "desc": "Code packed by a free obfuscator that stealer kits ship with (Hyperion, BlankOBF, Vare, Kramer, ...). "
+                 "Commercial PyArmor is reported separately as INFO",
+         "needles": ["hyperion", "blankobf", "vareobfuscator", "obfuscated with", "kramer", "pyobfuscate", "__obfuscator__",
+                     "specter", "development-fundaments"],
+         "regexes": [r"__obfuscator__\s*=\s*['\"]|\b__VareObfuscator__\b|github\.com/(?:billythegoat356/Hyperion|Blank-c/BlankOBF|"
+                     r"Blank-c/Blank-Grabber|addi00000/empyrean)|#\s*Obfuscated (?:with|by) (?:BlankOBF|Hyperion|Kramer|Specter|"
+                     r"PyObfuscate|pyobfuscate\.com|Py-Fuscate|Vare)|pyobfuscate\.com|\bKramer\s*\(\s*['\"]"]},
+        {"id": "embedded_executable", "name": "Embedded Executable in Source",
+         "desc": "A Windows PE / Linux ELF binary written out from a bytes literal in Python source (dropper)",
+         "needles": ["mz\\x90", "\\x7felf", "mz\\x00"],
+         "regexes": [r"b['\"]MZ(?:\\x90|\\x00|\\x50)\\x00", r"b['\"]\\x7fELF\\x0[12]"]},
         {"id": "whitespace_hiding", "name": "Whitespace-Hidden Code",
          "desc": "Code pushed hundreds of columns to the right so it is off-screen in an editor (W4SP setup.py trick)",
          "needles": [" " * 100, "\t" * 50],
@@ -227,7 +254,7 @@ PATTERNS = {
          "needles": ["bashrc", "zshrc", "bash_profile", "zprofile", "authorized_keys", "launchagents", "autostart", "crontab", "/etc/cron",
                      "currentversion\\\\run", "currentversion\\run", "startup", "systemd"],
          "regexes": [
-             r"(?:open|write_text|copy\w*|rename|move)\s*\([^\n]{0,160}(?:\.bashrc|\.zshrc|\.bash_profile|\.zprofile|authorized_keys|LaunchAgents|\.config[/\\\\]+autostart|systemd[/\\\\]+user|/etc/cron|Start Menu[/\\\\]+Programs[/\\\\]+Startup)",
+             r"(?:open|write_text|copy\w*|rename|move)\s*\([^\n]{0,160}(?:\.bashrc|\.zshrc|\.bash_profile|\.zprofile|(?<![\w.])\.profile\b|authorized_keys|LaunchAgents|\.config[/\\\\]+autostart|systemd[/\\\\]+user|/etc/cron|Start Menu[/\\\\]+Programs[/\\\\]+Startup)",
              r"CurrentVersion\\\\+Run\b",
              r"crontab\s+-[^l\s]",
          ]},
@@ -242,8 +269,9 @@ PATTERNS = {
     "info": [
         {"id": "credential_read", "name": "Credential Store Reference",
          "desc": "References ~/.pypirc, ~/.ssh, ~/.aws, ~/.netrc ... (config loaders and CLIs read their own auth)",
-         "needles": [".pypirc", ".ssh", ".aws", ".git-credentials", ".docker", ".netrc", ".kube", "etc/passwd", ".gitconfig"],
-         "regexes": [r"\.pypirc\b", r"\.ssh[/\\\\]+(?:id_\w+|known_hosts)\b", r"\.aws[/\\\\]+credentials", r"\.git-credentials",
+         "needles": [".pypirc", ".ssh", ".aws", ".git-credentials", ".docker", ".netrc", ".kube", "etc/passwd", ".gitconfig",
+                     "_history"],
+         "regexes": [r"\.pypirc\b", r"(?<![\w.])\.(?:bash|zsh)_history\b", r"\.ssh[/\\\\]+(?:id_\w+|known_hosts)\b", r"\.aws[/\\\\]+credentials", r"\.git-credentials",
                      r"\.docker[/\\\\]+config\.json", r"(?<![\w-])\.netrc\b", r"\.kube[/\\\\]+config", r"/etc/passwd\b",
                      r"(?<![\w.-])\.gitconfig\b"]},
         {"id": "process_spawn", "name": "Process Spawning",
@@ -259,7 +287,8 @@ PATTERNS = {
         {"id": "env_walk", "name": "Environment Walk",
          "desc": "Iterates over every environment variable",
          "needles": ["environ"],
-         "regexes": [r"for\s+\w+(?:\s*,\s*\w+)?\s+in\s+(?:os\.)?environ(?:\.items\s*\(\s*\)|\.keys\s*\(\s*\)|\.values\s*\(\s*\))?\s*:"]},
+         "regexes": [r"for\s+\w+(?:\s*,\s*\w+)?\s+in\s+(?:os\.)?environ(?:\.items\s*\(\s*\)|\.keys\s*\(\s*\)|\.values\s*\(\s*\))?\s*:",
+                     r"for\s+\w+\s*,\s*\w+\s+in\s+(?:os\.)?environ\.items\s*\(\s*\)\s*(?:if\b|\]|\))"]},
         {"id": "dynamic_exec", "name": "Dynamic exec/compile",
          "desc": "exec/eval of a non-literal (version files, templating, REPLs)",
          "needles": ["exec", "eval"],
@@ -292,7 +321,8 @@ CHECKSUM_RE = re.compile(CHECKSUM, re.IGNORECASE)
 B64ENC_RE = re.compile(r"\bb64encode\s*\(|\bb32encode\s*\(|\bhexlify\s*\(|\.hex\s*\(\s*\)")
 BLOB_RE = re.compile(r"[A-Za-z0-9+/=_\-]{4096,}")
 CHMOD_RE = re.compile(r"\bchmod\s*\([^\n]{0,80}(?:0o?7\d\d|0o?5\d\d|S_IX|S_IEXEC|\|\s*0o?1\b|0o?111)|\bchmod\s+\+?[0-7]*x|\bchmod\s+[0-7]?7[0-7]{2}\b", re.IGNORECASE)
-DOWNLOAD_RE = re.compile(r"\burlretrieve\s*\(|\burlopen\s*\(|\brequests\.get\s*\(|\bhttpx\.get\s*\(|\bwget\s|\bcurl\s", re.IGNORECASE)
+DOWNLOAD_RE = re.compile(r"\burlretrieve\s*\(|\burlopen\s*\(|\brequests\.get\s*\(|\bhttpx\.get\s*\(|\bwget\s|\bcurl(?:\.exe)?\s|"
+                         r"['\"]curl['\"]\s*,|Invoke-WebRequest|DownloadFile\s*\(", re.IGNORECASE)
 # exec of a computed path: subprocess.Popen([path, ...]) / os.system(var) etc, not a literal tool name
 DYN_EXEC_RE = re.compile(r"(?:subprocess\.\w+|Popen|os\.system|os\.startfile|os\.exec\w+)\s*\(\s*\[?\s*(?!['\"\[]|sys\.executable|cmd\b|args\b|command\b)[\w.]+")
 CLIP_SET_RE = re.compile(r"\bpyperclip\.copy\s*\(|SetClipboardData|\bclipboard_append\s*\(|\bpbcopy\b|xclip\s+-selection")
@@ -304,9 +334,49 @@ TEST_PATH_RE = re.compile(r"(?:^|/)(?:tests?|testing|__tests__|examples?|docs?|d
                           r"(?:^|/)(?:test_[^/]*|[^/]*_test|conftest)\.py$", re.IGNORECASE)
 PLACEHOLDER_RE = re.compile(r"(?:\b(?:your|my)[-_]|xxxx|<[\w-]+>|\{[\w-]+\}|\b123456\b|example|\.\.\.)", re.IGNORECASE)
 CHAT_API_RE = re.compile(r"api\.telegram\.org/bot|discord(?:app)?\.com/api/webhooks/|hooks\.slack\.com/services/", re.IGNORECASE)
+TG_TOKEN_RE = re.compile(r"['\"]\d{8,10}:AA[\w-]{32,34}['\"]")
 HARDCODED_CHAT_RE = re.compile(r"api\.telegram\.org/bot\d{5,}:[\w-]{20,}|discord(?:app)?\.com/api/webhooks/\d{4,}/[\w-]{10,}|"
                                r"hooks\.slack\.com/services/T\w+/B\w+/\w+", re.IGNORECASE)
-LINE_ONCE = {"network", "process_spawn", "credential_read", "dynamic_exec", "pyarmor", "clipboard", "env_walk"}
+NET_ALIAS_RE = re.compile(r"^[ \t]*(?:from[ \t]+urllib[ \t]+)?import[ \t][^\n]*?\b(?:requests|httpx|urllib\.request|urllib3|request)"
+                          r"[ \t]+as[ \t]+(\w+)()", re.M)
+RAW_IDS = {"obfuscator"}  # matched on raw text (comments included)
+# who-am-I data a dependency-confusion beacon sends home
+RECON_HOST_RE = re.compile(r"\bgethostname\s*\(|\bplatform\.node\s*\(|\buname\s*\(\s*\)(?:\[1\]|\.nodename)|\bgetfqdn\s*\(|"
+                           r"environ(?:\.get\s*\(|\[)\s*['\"](?:COMPUTERNAME|HOSTNAME)['\"]|(?:check_output|run|Popen|popen|system)\s*\(\s*\[?\s*['\"]hostname\b")
+RECON_USER_RE = re.compile(r"\bgetuser\s*\(|\bgetlogin\s*\(|environ(?:\.get\s*\(|\[)\s*['\"](?:USER|USERNAME|LOGNAME)['\"]|"
+                           r"(?:check_output|run|Popen|popen|system)\s*\(\s*\[?\s*['\"]whoami\b|\bgetpass\.getuser\b")
+CRED_GATE_RE = re.compile(r"\.ssh[/\\'\"]|\.aws[/\\'\"]|\.pypirc|\.netrc|\.(?:bash|zsh)_history|\.git-credentials|\.kube[/\\'\"]")
+RECON_CWD_RE = re.compile(r"\bos\.getcwd\s*\(|\bPath\.cwd\s*\(|\bgetcwd\s*\(")
+
+
+def _recon(text):
+    """Host name AND user name collected in one file: what a beacon reports home. (cwd and
+    os.uname() alone are everyday build-script platform / path logic.)"""
+    return bool(RECON_HOST_RE.search(text) and RECON_USER_RE.search(text))
+
+# a downloaded file that is then launched: python on a temp path, os.startfile, Windows `start`
+LAUNCH_RE = re.compile(r"(?:\b(?:run|call|Popen|check_call|check_output|system|popen)\s*\(\s*\[?\s*f?(?:['\"](?:python[\d.]*w?(?:\.exe)?|pythonw|wscript|cscript|cmd(?:\.exe)?|"
+                       r"powershell(?:\.exe)?|start)\b|sys\.executable)|\bos\.startfile\s*\(|Start-Process\b|['\"]start\s+(?:/b\s+)?['\"{]?|"
+                       r"\bstart\s+\{)", re.IGNORECASE)
+LAUNCH_ANY_RE = re.compile("(?:%s)|(?:%s)" % (LAUNCH_RE.pattern, DYN_EXEC_RE.pattern), re.IGNORECASE)
+# a .exe / script-host file name, but not the toolchain a Windows build legitimately drives
+EXE_LIT_RE = re.compile(r"['\"](?![^'\"\n]{0,200}(?:vcvars\w*|vsdevcmd|cmake|nmake|msbuild|cl|link|lib|rc|mt|ninja|git|gcc|g\+\+|clang\w*|"
+                        r"python\w*|pip|nvcc|cargo|rustc|swig|make|mingw\w*|meson|conan|vswhere|signtool)\.(?:exe|bat|cmd)['\"])"
+                        r"[^'\"\n]{0,200}\.(?:exe|scr|vbs|vbe|bat|cmd|ps1|msi|hta|jse?)['\"]", re.IGNORECASE)
+SAVE_RE = re.compile(r"\burlretrieve\s*\(|\.write\s*\(|\bcurl\b[^\n]{0,200}(?:-o|--output)\b|['\"]-o['\"]|DownloadFile\s*\(|\bwget\b|-OutFile\b", re.IGNORECASE)
+PS_HIDDEN_RE = re.compile(r"(?:-W(?:indowStyle)?\s+Hidden|-Exec(?:utionPolicy)?\s+Bypass|-NoP(?:rofile)?\s+-NonI|Start-Process[^\n]{0,80}-WindowStyle\s+Hidden)", re.IGNORECASE)
+PS_DL_RE = re.compile(r"Net\.WebClient|DownloadFile|DownloadString|Invoke-WebRequest|\biwr\b|Invoke-RestMethod|bitsadmin\s+/transfer|certutil[^\n]{0,20}-urlcache", re.IGNORECASE)
+ARCHIVE_USE_RE = re.compile(r"\b(?:tarfile|zipfile)\.|\bextractall\s*\(|\b(?:ZipFile|TarFile)\s*\(|shutil\.unpack_archive")
+FETCH_ASSIGN_RE = re.compile(r"^[ \t]*(\w+)\s*=\s*[^\n]{0,80}(?:requests\.get|\w*urlopen|httpx\.get|\w+\.get)\s*\([^\n]{0,300}$", re.M)
+INTERP_ARG_RE = re.compile(r"\[\s*['\"](?:node|nodejs|python[\d.]*|bash|sh|zsh|perl|ruby|php)['\"]\s*,\s*['\"]-[ec]['\"]\s*,\s*"
+                           r"(?!['\"])[\w.]+(?:\[[^\]]*\])?\s*[\],]")
+SHELL_NET_RE = re.compile(r"['\"`\s](?:curl(?:\.exe)?|wget|nc|ncat|Invoke-WebRequest|iwr|Invoke-RestMethod|bitsadmin|certutil)\s+[^\n'\"]{0,200}"
+                          r"(?:https?://|\d{1,3}(?:\.\d{1,3}){3}|-F\s|--data|-d\s*@|-T\s|-urlcache|/transfer)", re.IGNORECASE)
+CHR_ARRAY_RE = re.compile(r"chr\s*\(\s*\w+\s*\)\s*for\s+\w+\s+in\s+\[\s*\d+\s*(?:,\s*\d+\s*){7,}\]|(?:chr\s*\(\s*\d+\s*\)\s*\+\s*){8,}")
+INSTALL_CMD_RE = re.compile(r"^\s*class\s+\w+\s*\(\s*(?:\w+\.)*_?(?:install|develop|egg_info|bdist_egg|_install|_develop)\s*\)\s*:", re.M | re.IGNORECASE)
+B64_LIT_RE = re.compile(r"(?:b|u)?(?P<q>['\"])(?P<s>[A-Za-z0-9+/\-_]{200,}={0,2})(?P=q)")
+HEX_LIT_RE = re.compile(r"(?P<q>['\"])(?P<s>(?:[0-9a-fA-F]{2}){150,})(?P=q)")
+LINE_ONCE = {"obfuscator", "network", "process_spawn", "credential_read", "dynamic_exec", "pyarmor", "clipboard", "env_walk"}
 # ids whose match in a str literal of a .py file is only text (an install hint / help message)
 NEED_EXEC_ON_LINE = {"download_execute"}
 BRANDS = ("ngrok", "telegram", "discord", "slack", "pastebin", "localtunnel", "cloudflare", "pipedream",
@@ -399,14 +469,64 @@ def _mask_fallback(text):
     return "\n".join(out), top
 
 
-def _toplevel_lines(top, nlines):
-    """Set of 1-based line numbers that execute at import (module-level code, not def/class/__main__)."""
-    run = set()
+DEF_NAME_RE = re.compile(r"^[ \t]*(?:async[ \t]+)?def[ \t]+(\w+)", re.M)
+
+
+def _toplevel_lines(top, nlines, text=None, seeds=()):
+    """Set of 1-based line numbers that execute at import: module-level code (not def/class/__main__),
+    plus the bodies of module-level functions that module-level code calls (`def _p(): ...` + `_p()`
+    is how most import-time beacons are written), followed transitively."""
+    run, defs = set(), {}
     for i, (ln, kind) in enumerate(top):
         end = top[i + 1][0] if i + 1 < len(top) else nlines + 1
         if kind == "code":
             run.update(range(ln, end))
+        elif kind == "def" and text is not None:
+            defs[(ln, end)] = None
+    if not defs or text is None:
+        return run
+    seeds = set(seeds)
+    lines = text.split("\n")
+    spans = {}
+    for (a, b) in defs:
+        m = DEF_NAME_RE.search("\n".join(lines[a - 1:min(b - 1, a + 20)]))
+        if m and not lines[a - 1].lstrip().startswith("class"):
+            spans.setdefault(m.group(1), (a, b))
+    for name in seeds:  # functions setup.py itself calls
+        if name in spans:
+            run.update(range(*spans[name]))
+    callers = set(run)
+    for _ in range(3):
+        body = "\n".join(lines[i - 1] for i in sorted(callers) if 0 < i <= len(lines))
+        new = set()
+        for name, (a, b) in spans.items():
+            if not set(range(a, b)) <= run and re.search(r"(?<![\w.])%s\s*\(" % re.escape(name), body):
+                new.update(range(a, b))
+        if not new - run:
+            break
+        callers = new - run
+        run |= new
     return run
+
+
+PLACEHOLDER_ARG_RE = re.compile(r"(?:b64decode|b85decode|b32decode|decompress|unhexlify|fromhex|loads|decrypt)\s*\(\s*"
+                                r"(?:\\?['\"])?\s*(?:\{\{?[\w.\[\]'\"]*\}?\}|%[sr]|%\(\w+\)[sr]|\$\{?\w+\}?)\s*(?:\\?['\"])?\s*[).]")
+
+
+def _string_spans(text):
+    """[(start, end)] character offsets of every string literal token (f-strings included)."""
+    lines = text.splitlines(True)
+    starts = [0]
+    for ln in lines:
+        starts.append(starts[-1] + len(ln))
+    out = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type == tokenize.STRING:
+                out.append((starts[tok.start[0] - 1] + tok.start[1], starts[tok.end[0] - 1] + tok.end[1]))
+    except (tokenize.TokenError, IndentationError, SyntaxError, ValueError):
+        pass
+    return out
 
 
 def _prep(text):
@@ -483,13 +603,91 @@ def _near(text, rxs, span):
     return False
 
 
-def _scan_text(text, path, findings, info, ctx=None, pkg=""):
+def _decode_layers(data, how, out, budget):
+    """Follow compression / base64 layers of one decoded blob. Appends (how, text, is_code)."""
+    for _ in range(4):
+        for name, fn in (("zlib", zlib.decompress), ("gzip", gzip.decompress), ("lzma", lzma.decompress),
+                         ("bz2", bz2.decompress)):
+            try:
+                data = fn(data)
+                how += "+" + name
+                break
+            except Exception:
+                continue
+        else:
+            break
+    if len(data) > budget[0]:
+        return
+    budget[0] -= len(data)
+    try:
+        txt = data.decode("utf-8")
+    except UnicodeDecodeError:
+        txt = None
+    if txt is not None and sum(c.isprintable() or c in "\n\r\t" for c in txt[:4000]) > 0.95 * min(len(txt), 4000):
+        if re.search(r"^\s*(?:import |from \w|def |class |exec\s*\(|eval\s*\()|\bexec\s*\(|__import__\s*\(", txt, re.M):
+            out.append((how, txt, True))
+            return
+        if B64_LIT_RE.fullmatch('"' + txt.strip() + '"'):  # base64 of base64
+            try:
+                return _decode_layers(base64.b64decode(txt.strip() + "=" * (-len(txt.strip()) % 4)), how + "+b64", out, budget)
+            except Exception:
+                return
+        return
+    # binary (marshal'd code objects, pickles): scan its printable strings, never load it
+    if data[:1] in (b"\xe3", b"c", b"\x80") or how.endswith(("zlib", "lzma", "bz2", "gzip")):
+        runs = re.findall(rb"[\x20-\x7e]{6,}", data)
+        if runs:
+            out.append((how, "\n".join(r.decode("ascii") for r in runs[:20000]), False))
+
+
+def _peel(text):
+    """Statically decode base64 / hex literals (and zlib / lzma / bz2 / gzip inside them) that hold
+    Python source or compiled code, so the payload a loader would exec is scanned too. Nothing is
+    executed or unmarshalled: binary layers are reduced to their printable strings."""
+    if "exec" not in text and "eval" not in text and "marshal" not in text and "loads" not in text \
+            and "executable" not in text and "decode" not in text:
+        return []
+    out, budget = [], [8000000]
+    for rx, dec, how in ((B64_LIT_RE, lambda v: base64.b64decode(v + "=" * (-len(v) % 4), altchars=b"-_" if ("-" in v or "_" in v) else None), "b64"),
+                         (HEX_LIT_RE, bytes.fromhex, "hex")):
+        for n, m in enumerate(rx.finditer(text)):
+            if n >= 40 or budget[0] <= 0:
+                break
+            v = m.group("s")
+            for cand, tag in ((v, how), (v[::-1], how + "-reversed")):
+                try:
+                    data = dec(cand)
+                except Exception:
+                    continue
+                k = len(out)
+                _decode_layers(data, tag, out, budget)
+                if len(out) > k:
+                    break
+    return out[:10]
+
+
+def _scan_text(text, path, findings, info, ctx=None, pkg="", depth=0, seeds=()):
     """Scan one file. ctx: None (runtime module) | 'install' | 'startup' (whole file runs
     automatically) | 'import' (module whose top-level code runs on import) |
     'startup-module' (a module a .pth imports: its top level runs at interpreter start)."""
+    layers = _peel(text) if depth < 3 and len(text) >= 200 else []
     text, blobs = _prep(text)
     low = text.lower()
     is_py = path.endswith((".py", ".pyw", ".pth")) or "." not in posixpath.basename(path)
+    for i, (how, inner, is_code) in enumerate(layers):
+        sub_f, sub_i = [], []
+        # a decoded layer runs where the outer file runs, if it runs at all: keep only an install /
+        # startup context; an import-time file's decoded payload stays at its unescalated severity
+        _scan_text(inner, "%s!%s-%d.py" % (path, how, i + 1) if is_code else path + "!" + how + "-strings",
+                   sub_f, sub_i, ctx if ctx in (CTX_INSTALL, CTX_STARTUP) else None, pkg, depth + 1)
+        for f in sub_f:
+            f["description"] += " [found in a %s-decoded layer]" % how
+        findings.extend(sub_f)
+        info.extend(sub_i[:20])
+        if is_code and EXEC_SINK_RE.search(text) and not any(f["id"] == "obfuscated_exec" for f in findings):
+            findings.append(_item("HIGH", "obfuscated_exec", "Exec of Encoded Payload",
+                                  "Carries Python source hidden in a %s layer, and the file has an exec / process sink" % how,
+                                  path, 0, "", "decoded layer"))
     if blobs:
         info.append(_item("INFO", "embedded_blob", "Embedded Encoded Blob",
                           "%d encoded run(s) of 4 KB or more (data, fonts, wheels-in-wheels)" % blobs, path, 0, "", ""))
@@ -499,11 +697,17 @@ def _scan_text(text, path, findings, info, ctx=None, pkg=""):
     if is_py and not path.endswith(".pth"):
         # tokenizing is the expensive part: only when a scored signature hits the raw text
         scored = [g for g in _GROUPS if g[0] != "info"]
-        if next(_matches(text, low, _newlines(text), scored), None) is not None:
+        # ... or when a network call sits next to a launch / recon / install-override (the combination rules)
+        if next(_matches(text, low, _newlines(text), scored), None) is not None or (
+                ctx is not None and NET_RE.search(text) and (seeds or LAUNCH_ANY_RE.search(text) or INTERP_ARG_RE.search(text) or RECON_HOST_RE.search(text) or RECON_USER_RE.search(text) or CRED_GATE_RE.search(text)
+                                                             or INSTALL_CMD_RE.search(text) or TG_TOKEN_RE.search(text))):
             masked, top = _mask_python(text)
     nl = _newlines(masked)
     local, seen = [], set()
-    for sev, pg, rxs, n, line, m in _matches(masked, low, nl, groups):
+    hits = list(_matches(masked, low, nl, [g for g in groups if g[1]["id"] not in RAW_IDS]))
+    # banners live in comments: these groups match the unmasked text (masking keeps offsets)
+    hits += list(_matches(text, low, nl, [g for g in groups if g[1]["id"] in RAW_IDS]))
+    for sev, pg, rxs, n, line, m in hits:
         pid = pg["id"]
         if (pid, n) in seen or (pid, 0) in seen:
             continue
@@ -516,6 +720,16 @@ def _scan_text(text, path, findings, info, ctx=None, pkg=""):
         return
     ids = {f["id"] for f in local}
     has_net = "network" in ids
+    if not has_net and " as " in masked:  # `import requests as _r` ... `_r.post(...)`
+        for m in NET_ALIAS_RE.finditer(masked):
+            mm = re.search(r"(?<![\w.])%s\.(?:get|post|put|patch|request|head|urlopen|urlretrieve|Session|Client)\s*\(" % re.escape(m.group(1) or m.group(2)), masked)
+            if mm:
+                n = masked.count("\n", 0, mm.start()) + 1
+                local.append(_item("INFO", "network", "Network Access", "Makes outbound HTTP calls (aliased import)",
+                                   path, n, mm.group(0), ""))
+                ids.add("network")
+                has_net = True
+                break
     auto = ctx in (CTX_INSTALL, CTX_STARTUP)
 
     def demote(pid, why, cond=lambda f: True):
@@ -533,9 +747,27 @@ def _scan_text(text, path, findings, info, ctx=None, pkg=""):
 
     run_lines = None
     if ctx in (CTX_IMPORT, "startup-module", "install-module") and top:
-        run_lines = _toplevel_lines(top, masked.count("\n") + 1)
+        run_lines = _toplevel_lines(top, masked.count("\n") + 1, masked, seeds)
 
     # ---- demotions: text that is shown, not run --------------------------------------
+    # a launcher TEMPLATE: `f"""python -c "exec(b64decode('{code_b64}'))" """` builds a command for
+    # code the caller supplies at runtime. The decode argument is a format placeholder inside a string
+    # literal, so no payload ships in the file (an embedded blob would be peeled and scanned instead).
+    if is_py and "obfuscated_exec" in ids:
+        spans = None
+        for f in local:
+            if f["id"] != "obfuscated_exec" or f["severity"] == "INFO" or not f["line"]:
+                continue
+            ln = line_of(f)
+            mm = PLACEHOLDER_ARG_RE.search(ln)
+            if not mm:
+                continue
+            if spans is None:
+                spans = _string_spans(text)
+            off = (nl[f["line"] - 2] + 1 if f["line"] >= 2 else 0) + mm.start()
+            if any(a <= off < b for a, b in spans):
+                f["severity"] = "INFO"
+                f["description"] += " [template string: decodes a placeholder the caller fills in at runtime]"
     if is_py:
         for pid in NEED_EXEC_ON_LINE & ids:
             demote(pid, "string only: not passed to exec/subprocess", lambda f: not EXEC_SINK_RE.search(line_of(f)))
@@ -611,8 +843,96 @@ def _scan_text(text, path, findings, info, ctx=None, pkg=""):
         local.append(_item(sev, "dropper", "Download & Execute Binary (dropper)",
                            "Downloads a file, marks it executable and runs it, with no checksum check" +
                            (" - a cryptominer" if sev == "CRITICAL" else ""), path, 0, "", "file-level combination"))
+    # ---- recall rules from the DataDog malware benchmark (see RECALL.md) ---------------
+    def first_line(rx):
+        m = rx.search(masked)
+        return masked.count("\n", 0, m.start()) + 1 if m else 0
+
+    def runs_now(n):
+        return auto or (run_lines is not None and n in run_lines)
+
+    net_lines = [masked.count("\n", 0, m.start()) + 1 for m in NET_RE.finditer(masked)
+                 if not re.match(r"\s*class\s", masked[masked.rfind("\n", 0, m.start()) + 1:m.start()])][:200] if has_net else []
+    net_line = next((n for n in net_lines if runs_now(n)), net_lines[0] if net_lines else 0)
+    install_cmd = ctx == CTX_INSTALL and bool(INSTALL_CMD_RE.search(masked))
+    # dependency-confusion / recon beacon: who-am-I data + a network call, in code that runs on its own
+    if has_net and _recon(masked) and (runs_now(net_line) or install_cmd):
+        local.append(_item("HIGH", "recon_beacon", "Install / Import-Time Recon Beacon",
+                           "Collects host / user identity and makes a network call in code that runs on its own "
+                           "(dependency-confusion probe shape)", path, net_line, "", "file-level combination"))
+    # credential store read + network call, both in code that runs on its own (import / install)
+    cred_lines = [f["line"] for f in local if f["id"] == "credential_read" and f["line"]]
+    if has_net and any(runs_now(n) for n in cred_lines) and runs_now(net_line) and not any(
+            f["id"] == "credential_exfil" for f in local):
+        local.append(_item("HIGH", "credential_exfil", "Credential Read + Send at Import / Install",
+                           "Reads a credential store and makes a network call in code that runs on its own",
+                           path, net_line, "", "file-level combination"))
+    # an `install` / `develop` command override that talks to the network: nothing legitimate needs
+    # the network AFTER pip has resolved the package (data downloads live in build_py / build_ext)
+    # (anywhere in setup.py: the override usually calls a module-level helper that does the request)
+    # A setup.py that downloads an archive and unpacks it is fetching a build dependency (a DB client
+    # driver, a font pack): that stays the MEDIUM install_network finding.
+    elif install_cmd and has_net and not CHECKSUM_RE.search(masked) and not ARCHIVE_USE_RE.search(masked):
+        local.append(_item("HIGH", "install_hook_network", "Network Call in an install-Command Override",
+                           "setup.py replaces pip's install / develop step and makes a network call",
+                           path, net_line, "", "file-level combination"))
+    # download a file, then launch it (python on a .pyz in /tmp, os.startfile, `start`, wscript): the
+    # Windows / Python-payload variant of the dropper, no chmod needed
+    if has_net and not CHECKSUM_RE.search(masked) and "dropper" not in {f["id"] for f in local} and \
+            _near(masked, (DOWNLOAD_RE, SAVE_RE, LAUNCH_ANY_RE), 20):
+        launch = first_line(LAUNCH_RE)
+        sev = "HIGH" if runs_now(launch) or runs_now(net_line) else "MEDIUM"
+        local.append(_item(sev, "dropper", "Download & Launch (dropper)",
+                           "Downloads a file and launches it (Python payload, startfile, start, script host) with no checksum",
+                           path, launch if sev == "HIGH" else 0, "", "file-level combination"))
+    # body = requests.get(url).text ... exec(body): the stage-two loader, split over two lines
+    if has_net and "exec" in low or has_net and "eval" in low:
+        for m in FETCH_ASSIGN_RE.finditer(masked):
+            n = masked.count("\n", 0, m.start()) + 1
+            rest = "\n".join(masked[m.end():].split("\n")[:15])
+            if re.search(r"\b(?:exec|eval)\s*\(\s*(?:compile\s*\(\s*)?%s\b" % re.escape(m.group(1)), rest):
+                local.append(_item("CRITICAL", "download_execute", "Download & Execute",
+                                   "Fetches a body over the network and exec()s it a few lines later", path, n,
+                                   m.group(0)[:120], ""))
+                break
+    if has_net and _near(masked, (DOWNLOAD_RE, INTERP_ARG_RE), 12):
+        n = first_line(INTERP_ARG_RE)
+        local.append(_item("HIGH", "download_execute", "Fetched Code Run by an Interpreter",
+                           "Downloads a body and hands it to node -e / python -c / sh -c", path, n, "",
+                           "file-level combination"))
+    if PS_HIDDEN_RE.search(masked) and PS_DL_RE.search(masked) and (EXEC_SINK_RE.search(masked) or not is_py):
+        local.append(_item("HIGH", "download_execute", "Hidden PowerShell Download",
+                           "Hidden / policy-bypassing PowerShell that downloads and runs a file", path,
+                           first_line(PS_DL_RE), "", "file-level combination"))
+    # hard-coded Telegram bot token + a network call: a collector, not an integration
+    if has_net and "telegram" in low and TG_TOKEN_RE.search(masked):
+        local.append(_item("HIGH", "exfil_host", "Hard-Coded Telegram Bot",
+                           "Ships its own Telegram bot token and calls the API: data goes to the author's chat",
+                           path, first_line(TG_TOKEN_RE), "", "file-level combination"))
+    # setup.py shelling out to curl / wget / nc / Invoke-WebRequest: pip already fetched everything it needs
+    if ctx == CTX_INSTALL:
+        for m in SHELL_NET_RE.finditer(masked):
+            n = masked.count("\n", 0, m.start()) + 1
+            a = nl[n - 2] + 1 if n >= 2 else 0
+            b = nl[n - 1] if n - 1 < len(nl) else len(masked)
+            if EXEC_SINK_RE.search(masked[a:b]) and not CHECKSUM_RE.search(masked):
+                local.append(_item("HIGH", "install_shell_net", "Shell Network Tool at Install Time",
+                                   "setup.py runs curl / wget / nc / Invoke-WebRequest through a shell", path, n,
+                                   m.group(0), masked[a:b]))
+                break
+    # setup.py launching a Windows executable / script host file at install time
+    if ctx == CTX_INSTALL and _near(masked, (EXE_LIT_RE, LAUNCH_ANY_RE), 10):
+        local.append(_item("HIGH", "install_runs_binary", "Runs an Executable at Install Time",
+                           "setup.py launches a .exe / .scr / .vbs / .bat / .ps1 while pip installs the package",
+                           path, first_line(EXE_LIT_RE), "", "file-level combination"))
+    # strings assembled from char-code arrays in setup.py: hides paths / commands from review
+    if ctx == CTX_INSTALL and CHR_ARRAY_RE.search(masked):
+        local.append(_item("HIGH", "obfuscated_exec", "Char-Code String Hiding at Install Time",
+                           "setup.py builds strings from arrays of character codes", path, first_line(CHR_ARRAY_RE), "",
+                           "file-level combination"))
     if auto and ctx == CTX_INSTALL and has_net and not any(
-            f["id"] in ("dropper", "credential_exfil", "env_exfil", "download_execute") and f["severity"] != "INFO" for f in local):
+            f["id"] in ("dropper", "credential_exfil", "env_exfil", "download_execute", "recon_beacon",
+                        "install_hook_network", "install_shell_net") and f["severity"] != "INFO" for f in local):
         if not CHECKSUM_RE.search(masked):
             local.append(_item("MEDIUM", "install_network", "Unverified Install-Time Download",
                                "setup.py / build backend performs network I/O with no checksum verification in the file",
@@ -706,8 +1026,14 @@ SETUP_IMPORT_RE = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+)
 SETUP_EXECFILE_RE = re.compile(r"(?:exec\s*\(\s*open\s*\(|run_path\s*\(|execfile\s*\()\s*(?:os\.path\.join\s*\()?\s*['\"]([^'\"]+\.py)['\"]")
 
 
-def build_time_files(files):
-    """{path: ctx} for files in a source tree that run during `pip install` / `pip wheel`."""
+SETUP_FROM_RE = re.compile(r"^\s*from\s+([\w.]+)\s+import\s+\(?([\w ,]+)", re.M)
+
+
+def build_time_files(files, seeds=None):
+    """{path: ctx} for files in a source tree that run during `pip install` / `pip wheel`.
+    seeds, if given, is filled with {path: {function names setup.py imports from it and calls}}:
+    those function bodies run at build time too (`from pkg.run import main` ... `main()` in an
+    install-command override)."""
     out = {}
 
     def mod_file(dotted, base=""):
@@ -721,10 +1047,17 @@ def build_time_files(files):
         out[setup] = CTX_INSTALL
         txt = files[setup]
         for m in SETUP_IMPORT_RE.finditer(txt):
-            mod = (m.group(1) or m.group(2)).split(".")[0]
-            f = mod_file(mod) or mod_file(mod, "src")
-            if f and f not in out:
-                out[f] = "install-module"  # imported by setup.py: its top level runs at build time
+            dotted = m.group(1) or m.group(2)
+            for mod in dict.fromkeys((dotted, dotted.split(".")[0])):
+                f = mod_file(mod) or mod_file(mod, "src")
+                if f and f not in out:
+                    out[f] = "install-module"  # imported by setup.py: its top level runs at build time
+        if seeds is not None:
+            for m in SETUP_FROM_RE.finditer(txt):
+                f = mod_file(m.group(1)) or mod_file(m.group(1), "src")
+                for name in re.findall(r"\w+", m.group(2)):
+                    if f and name != "as" and re.search(r"(?<![\w.])%s\s*\(" % re.escape(name), txt):
+                        seeds.setdefault(f, set()).add(name)
         for m in SETUP_EXECFILE_RE.finditer(txt):
             p = posixpath.normpath(m.group(1))
             if p in files:
@@ -778,7 +1111,7 @@ def scan_distribution(sdist=None, wheel=None, label="", name="", build_only=Fals
             return False
         return True
 
-    def scan_tree(files, prefix, ctx_map, scan_runtime):
+    def scan_tree(files, prefix, ctx_map, scan_runtime, seeds=None):
         startup_mods = set()
         for p in sorted(files):
             if p.endswith(".pth"):
@@ -815,16 +1148,17 @@ def scan_distribution(sdist=None, wheel=None, label="", name="", build_only=Fals
                 ctx = CTX_IMPORT if p.endswith((".py", ".pyw")) else None
             if not budget(p, text):
                 return
-            _scan_text(text, prefix + p, findings, info, ctx, name)
+            _scan_text(text, prefix + p, findings, info, ctx, name, seeds=(seeds or {}).get(p, ()))
 
     if sdist is not None:
-        bt = build_time_files(sdist)
+        seeds = {}
+        bt = build_time_files(sdist, seeds)
         notes["build_files"] = ["sdist:" + p for p in sorted(bt)]
         for p, c in sorted(bt.items()):
             info.append(_item("INFO", "build_hook", "Install-Time Code", "Runs while pip builds the package (%s)" % c,
                               "sdist:" + p, 0, "", ""))
         # with a wheel, only the sdist's build-time code matters (package code is scanned from the wheel)
-        scan_tree(sdist, "sdist:", bt, scan_runtime=(wheel is None and not build_only))
+        scan_tree(sdist, "sdist:", bt, scan_runtime=(wheel is None and not build_only), seeds=seeds)
     if wheel is not None:
         scan_tree(wheel, "wheel:", {}, scan_runtime=not build_only)
     r = _summarise(findings, info, label)
@@ -991,6 +1325,19 @@ def _want(name):
             or "/scripts/" in low and "." not in base)
 
 
+def _size_ok(name, size):
+    """Generated tables / vendored data over MAX_FILE are skipped - except setup.py: a multi-MB
+    setup.py is itself a red flag (an executable embedded as a bytes literal), so it is read clipped."""
+    return size <= MAX_FILE or (posixpath.basename(name) == "setup.py" and size <= MAX_SDIST)
+
+
+def _clip(text):
+    if len(text) <= MAX_FILE:
+        return text
+    h = MAX_FILE // 2
+    return text[:h] + "\n# [pypi-audit: %d bytes clipped]\n" % (len(text) - 2 * h) + text[-h:]
+
+
 def files_from_zip(fileobj, strip_top=False):
     out = {}
     with zipfile.ZipFile(fileobj) as zf:
@@ -998,7 +1345,7 @@ def files_from_zip(fileobj, strip_top=False):
             fileobj.prefetch([(zi.header_offset, zi.header_offset + 30 + len(zi.filename) + 2048 + zi.compress_size)
                               for zi in zf.infolist() if not zi.is_dir() and zi.file_size <= MAX_FILE and _want(zi.filename)])
         for zi in zf.infolist():
-            if zi.is_dir() or zi.file_size > MAX_FILE:
+            if zi.is_dir() or not _size_ok(zi.filename, zi.file_size):
                 continue
             name = zi.filename
             if strip_top and "/" in name:
@@ -1006,7 +1353,7 @@ def files_from_zip(fileobj, strip_top=False):
             if not name or not _want(name) or name.lower().endswith(".pyi"):
                 continue
             try:
-                out[name] = zf.read(zi).decode("utf-8", "replace")
+                out[name] = _clip(zf.read(zi).decode("utf-8", "replace"))
             except Exception:
                 continue
     return out
@@ -1016,14 +1363,14 @@ def files_from_tar(data):
     out = {}
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tf:
         for m in tf:
-            if not m.isfile() or m.size > MAX_FILE:
+            if not m.isfile() or not _size_ok(m.name, m.size):
                 continue
             name = m.name.split("/", 1)[1] if "/" in m.name else m.name
             if not name or not _want(name) or name.lower().endswith(".pyi"):
                 continue
             f = tf.extractfile(m)
             if f:
-                out[name] = f.read().decode("utf-8", "replace")
+                out[name] = _clip(f.read().decode("utf-8", "replace"))
     return out
 
 
@@ -1049,10 +1396,10 @@ def files_from_dir(root):
             if not _want(rel) or rel.endswith(".pyi"):
                 continue
             try:
-                if os.path.getsize(p) > MAX_FILE:
+                if not _size_ok(rel, os.path.getsize(p)):
                     continue
                 with open(p, encoding="utf-8", errors="replace") as fh:
-                    out[rel] = fh.read()
+                    out[rel] = _clip(fh.read())
             except OSError:
                 pass
     return out
@@ -1159,14 +1506,85 @@ def audit_pypi(spec, build_only=False, naive=False):
     return r
 
 
+ARCHIVE_EXT = (".whl", ".tar.gz", ".tgz", ".tar.bz2", ".tar.xz", ".zip", ".tar")
+
+
+DIST_MARKERS = ("setup.py", "pyproject.toml", "setup.cfg", "PKG-INFO")
+
+
+def _is_dist_root(files):
+    return any(p in DIST_MARKERS or p.split("/", 1)[0].endswith((".dist-info", ".egg-info")) and "/" in p for p in files)
+
+
+def _strip_common(files):
+    """Drop wrapper directories every path shares (`dl-2024-x/x-1.0/setup.py` -> `setup.py`), but
+    only down to a distribution root (setup.py / pyproject.toml / PKG-INFO / *.dist-info). A tree
+    with no such root is returned unchanged, so in-package paths (`pkg/tests/x.py`) are kept."""
+    cur = files
+    while cur and not _is_dist_root(cur):
+        heads = {p.split("/", 1)[0] for p in cur}
+        if len(heads) != 1 or any("/" not in p for p in cur):
+            return files
+        cur = {p.split("/", 1)[1]: t for p, t in cur.items()}
+    return cur or files
+
+
+def classify_tree(files):
+    """{path: text} of an extracted distribution -> (sdist, wheel). A tree with a *.dist-info
+    directory is an extracted wheel; one with setup.py / pyproject.toml at its root is an sdist;
+    anything else is plain installed code (no build step)."""
+    files = _strip_common(files)
+    heads = {p.split("/", 1)[0] for p in files if "/" in p}
+    if heads and heads <= {"sdist", "wheel"} and all("/" in p for p in files):
+        # a folder holding an unpacked sdist/ and/or wheel/ side by side (this repo's fixtures)
+        sd = {p[6:]: t for p, t in files.items() if p.startswith("sdist/")} or None
+        wh = {p[6:]: t for p, t in files.items() if p.startswith("wheel/")} or None
+        return sd, wh
+    if any(p.split("/", 1)[0].endswith(".dist-info") for p in files if "/" in p):
+        return None, files
+    if any(p in ("setup.py", "pyproject.toml") for p in files):
+        return files, None
+    return None, files
+
+
+def audit_tree(files, label, name="", build_only=False, naive=False, archives=()):
+    """Scan an extracted distribution given as {path: text}, plus any (filename, bytes) archives
+    found next to it (an sdist / wheel shipped as a file inside the tree)."""
+    sdist, wheel = classify_tree(files) if files else (None, None)
+    if any(p.endswith(CODE_EXT) for p in files or {}):
+        archives = ()  # a source tree that also holds built dists (dist/, vendored wheels): scan the tree
+    for fn, data in archives:
+        try:
+            got = files_from_archive(data, fn)
+        except Exception:
+            continue
+        if not fn.lower().endswith(".whl") and sdist is None:
+            sdist = got
+        elif wheel is None:
+            wheel = got
+        else:  # a second wheel / sdist: scan it as plain code under its own prefix
+            wheel.update({posixpath.basename(fn) + "!/" + p: t for p, t in got.items()})
+    r = scan_distribution(sdist, wheel, label, name, build_only)
+    if naive:
+        r["naive"] = naive_verdict(sdist, wheel)
+    return r
+
+
 def audit_local(path, build_only=False, naive=False):
     low = path.lower()
     name = re.split(r"[-_.](?=\d)", posixpath.basename(path.rstrip("/")))[0]
     sdist = wheel = None
     if os.path.isdir(path):
-        sdist = files_from_dir(path)
-        if not any(posixpath.basename(p) in ("setup.py", "pyproject.toml") for p in sdist):
-            wheel, sdist = sdist, None  # an installed tree / plain directory: no build step
+        files = files_from_dir(path)
+        archives = []
+        if not any(p.endswith(CODE_EXT) for p in files):  # a folder holding the .tar.gz / .whl itself
+            for dp, _dns, fns in os.walk(path):
+                for fn in fns:
+                    fp = os.path.join(dp, fn)
+                    if fn.lower().endswith(ARCHIVE_EXT) and os.path.getsize(fp) <= MAX_SDIST:
+                        with open(fp, "rb") as fh:
+                            archives.append((fn, fh.read()))
+        return audit_tree(files, path, name, build_only, naive, archives)
     elif low.endswith(".whl"):
         wheel = files_from_zip(path)
     elif low.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tar.xz", ".zip", ".tar")):

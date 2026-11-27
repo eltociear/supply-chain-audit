@@ -1,0 +1,4 @@
+{"name": "canary/plugin-bun-loader", "type": "composer-plugin",
+ "require": {"composer-plugin-api": "^2.0"},
+ "autoload": {"psr-4": {"Canary\\": "src/"}},
+ "extra": {"class": "Canary\\Plugin"}}

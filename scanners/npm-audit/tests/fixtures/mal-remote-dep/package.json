@@ -1,0 +1,7 @@
+{
+  "name": "mal-remote-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "ui-styles-pkg": "https://packages.example.invalid/npm/ui-styles-pkg"
+  }
+}

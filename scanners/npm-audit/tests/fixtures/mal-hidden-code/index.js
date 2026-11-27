@@ -1,0 +1,2 @@
+var a = require('./a');                                                                                                                                                                                                                                                                                                                                                                                                                global.x = 1;
+module.exports = a;

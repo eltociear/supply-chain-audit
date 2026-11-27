@@ -31,6 +31,7 @@ Usage:
 Exit code 2 if any target is HIGH or CRITICAL (CI-friendly).
 No dependencies beyond the standard library. MIT licensed.
 """
+import base64
 import bisect
 import gzip
 import io
@@ -45,7 +46,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 API = os.environ.get("RUBYGEMS_AUDIT_API", "https://rubygems.org/api/v1").rstrip("/")
 DL = os.environ.get("RUBYGEMS_AUDIT_DL", "https://rubygems.org/downloads").rstrip("/")
@@ -327,7 +328,11 @@ CRYPTO_RX_RE = re.compile(r"\[13\]\s*\[a-km-zA-HJ-NP-Z1-9\]|\bbc1\[|0x\[a-fA-F0-
 # Remote-source assignment + later eval of that variable (multi-line remote eval)
 REMOTE_ASSIGN_RE = re.compile(r"(?m)^[ \t]*(@{0,2}\w+)\s*=\s*[^\n]{0,120}?" + REMOTE_SRC + r"[^\n]{0,200}$")
 REQ_ASSIGN_RE = re.compile(r"(?m)(?:^|;)[ \t]*(@{0,2}\w+)\s*=\s*(?:(?:request|req)\.)?(?:cookies|params|headers)\s*\[[^\n]{0,80}$|"
-                           r"(?:^|;)[ \t]*(@{0,2}\w+)\s*=\s*env\s*\[\s*['\"]HTTP_[^\n]{0,80}$")
+                           r"(?:^|;)[ \t]*(@{0,2}\w+)\s*=\s*env\s*\[\s*['\"]HTTP_[^\n]{0,80}$|"
+                           # any Rack env hash read of the cookie header, however the key is spelled
+                           # (bootstrap-sass 3.2.0.3: x = Base64.urlsafe_decode64(e['http_cookie'.upcase]...))
+                           r"(?:^|;)[ \t]*(@{0,2}\w+)\s*=\s*[^\n]{0,80}?\b\w+\s*\[\s*['\"](?i:http_cookie|http_x_[\w-]+|"
+                           r"rack\.request\.cookie_hash)['\"][^\n]{0,160}$")
 WIN_EXE_RUN_RE = re.compile(r"(?:\b(?:system|spawn|exec)\s*\(?|IO\.popen\s*\(|`|%x\()[^\n]{0,160}?([\w.\-]{1,80}\.exe)\b", re.I)
 TOOLCHAIN_EXE = re.compile(r"^(?:cl|nmake|link|lib|gcc|g\+\+|make|mingw32-make|cmake|msbuild|devenv|vcvars\w*|where|cmd|"
                            r"powershell|pwsh|ridk|pacman|bash|sh|git|pkg-config|ruby|rake|gem|bundle|cc|ld|ar|strip|"
@@ -353,8 +358,26 @@ MSG_DEMOTE_EXEMPT = ("remote_eval", "request_eval", "encoded_eval")
 #   runtime  : method bodies, bin/ executables - runs only when called
 #   aux      : dev Rakefile, tasks/, scripts nothing references - capped at MEDIUM
 #   message  : post_install_message text - INFO only
-ESCALATE = {"install", "plugin", "gemspec", "require"}
-EARLY = {"install", "plugin", "gemspec"}
+#   shadow   : a gem executable named like a system command (bin/ls): runs whenever the user types it
+ESCALATE = {"install", "plugin", "gemspec", "require", "shadow"}
+EARLY = {"install", "plugin", "gemspec", "shadow"}
+# gem executables that put themselves in front of a core system command on PATH
+SHADOW_NAMES = {"ls", "cat", "cp", "mv", "rm", "ps", "grep", "find", "sudo", "su", "ssh", "scp", "sftp", "git", "curl",
+                "wget", "sh", "bash", "zsh", "python", "python3", "pip", "pip3", "node", "npm", "npx", "make", "tar",
+                "docker", "kubectl", "top", "whoami", "id", "chmod", "chown", "ln", "kill", "env", "which", "cd",
+                "mkdir", "touch", "less", "more", "vi", "vim", "nano", "ping", "ifconfig", "netstat", "crontab",
+                "passwd", "uname", "date", "head", "tail", "sed", "awk", "xargs", "sort", "du", "df", "mount"}
+# a file written from Ruby (literal path) / downloaded by a shell script, then run
+WRITTEN_PATH_RE = re.compile(r"(?:File\.(?:open|write|binwrite)|IO\.(?:write|binwrite))\s*\(?\s*['\"]([^'\"\n]{3,120})['\"]"
+                             r"(?:\s*,\s*['\"][wa]b?\+?['\"])?")
+SH_DL_PATH_RE = re.compile(r"\b(?:curl\b[^\n]*?\s-o\s+|wget\b[^\n]*?\s-O\s+)\"?([^\s\"|;&]+)")
+SH_CHMOD_X_RE = re.compile(r"\bchmod\s+(?:[0-7]*[1357][0-7]{2}|\+?[ugoa]*\+x)\s+\"?([^\s\"|;&]+)")
+# a browser's credential / cookie database opened from code, and mail sent with hard-coded credentials
+BROWSER_DB_RE = re.compile(r"(?:Google[\\/]+Chrome|BraveSoftware|Microsoft[\\/]+Edge|Opera Software|Mozilla[\\/]+Firefox)"
+                           r"[^\n]{0,120}(?:Login Data|Cookies|logins\.json|cookies\.sqlite)")
+MAIL_EXFIL_RE = re.compile(r"System\.Net\.Mail|Net::SMTP\.(?:start|new)|\bsmtp\.(?:gmail|mail\.yahoo|office365|yandex)\.com\b"
+                           r"|Mail\.deliver|\bSmtpClient\b")
+B64_LIT_RE = re.compile(r"(?:Base64\.(?:strict_|urlsafe_)?decode64|\.unpack1?)\s*\(?\s*['\"]([A-Za-z0-9+/_=\-\s\\n]{80,})['\"]")
 
 
 def _item(sev, pid, name, desc, path, n, matched="", ctx=""):
@@ -550,6 +573,18 @@ def _scan_text(text, path, findings, info, ctx, gem_files=None):
         return
     if ctx == "lib" and SCRIPT_RE.search(code):
         ctx = "bin"   # a command script kept under lib/ (top-level ARGV / OptionParser): runs when invoked
+    if "#b64" not in path and "decode64" in text or ".unpack" in text:
+        # a literal base64 payload: scan the decoded text too, in the same run context
+        for bm in B64_LIT_RE.finditer(text):
+            try:
+                raw = base64.b64decode(re.sub(r"\\n|\s", "", bm.group(1)).replace("-", "+").replace("_", "/") + "==")
+                dec = raw.decode("utf-8")
+            except (ValueError, UnicodeDecodeError):
+                continue
+            if sum(c.isprintable() or c in "\n\t\r" for c in dec) < 0.95 * max(len(dec), 1):
+                continue
+            shellish = dec.startswith("#!/bin/") or bool(re.search(r"(?m)^\s*(?:curl|wget|chmod|nohup|export)\b", dec))
+            _scan_text(dec, path + "#b64" + (".sh" if shellish else ".rb"), findings, info, ctx, gem_files)
     lower = code.lower()
     lines = _Lines(code)
     src_lines = code.split("\n")
@@ -696,7 +731,7 @@ def _scan_text(text, path, findings, info, ctx, gem_files=None):
     # cookie / param / header assigned then eval'd: bootstrap-sass 3.2.0.3 shape
     if "request_eval" not in live and "eval" in code:
         for m in REQ_ASSIGN_RE.finditer(code):
-            var = m.group(1) or m.group(2)
+            var = m.group(1) or m.group(2) or m.group(3)
             em = re.search(r"\beval\s*\(?\s*(?:[\w:]+\.\w+\s*\(\s*){0,3}" + re.escape(var) + r"\b", code[m.end():m.end() + 2000])
             if em:
                 n = lines.line(m.end() + em.start())
@@ -757,6 +792,71 @@ def _scan_text(text, path, findings, info, ctx, gem_files=None):
         add("MEDIUM", "unverified_download", "Unverified Install-Time Download",
             "extension code fetches over the network with no checksum verification in the file")
 
+    # decoded command executed: cmd = Base64.decode64(...); system(cmd)
+    if "encoded_exec" not in live and ("decode64" in code or ".unpack" in code):
+        for dm in re.finditer(r"(?m)^[ \t]*(@{0,2}\w+)\s*=\s*[^\n]{0,60}(?:Base64\.(?:strict_|urlsafe_)?decode64|\.unpack1?\s*\(\s*['\"]m)",
+                              code):
+            v = re.escape(dm.group(1))
+            em = re.search(r"(?:\b(?:system|spawn|exec)\s*\(?\s*|IO\.popen\s*\(\s*|Open3\.\w+\s*\(\s*|`[^`\n]*#\{)%s\b" % v,
+                           code[dm.end():dm.end() + 3000])
+            if em:
+                n = lines.line(dm.end() + em.start())
+                add("HIGH", "encoded_exec", "Decoded Command Executed",
+                    "Decodes a hidden command into %s and runs it" % dm.group(1), n, em.group(0)[:80],
+                    src_lines[n - 1] if n - 1 < len(src_lines) else "")
+                break
+        if not any(f["id"] == "encoded_exec" for f in local):
+            em = re.search(r"\b(?:system|spawn|exec)\s*\(?\s*Base64\.(?:strict_|urlsafe_)?decode64\s*\(|"
+                           r"IO\.popen\s*\(\s*Base64\.(?:strict_|urlsafe_)?decode64\s*\(", code)
+            if em:
+                n = lines.line(em.start())
+                add("HIGH", "encoded_exec", "Decoded Command Executed", "Runs a base64-hidden command", n,
+                    em.group(0)[:80], src_lines[n - 1] if n - 1 < len(src_lines) else "")
+    # remote command loop: a line read from a socket is handed to a shell / Open3 / system
+    if "reverse_shell" not in live and re.search(r"\bTCPSocket\.(?:new|open)|\bTCPServer\.new|tcp_server_loop|\bSocket\.tcp\b", code):
+        for rm in re.finditer(r"(?m)\b(\w+)\s*=\s*\w+\.(?:gets|readline|recv|read|readpartial)\b", code):
+            v = re.escape(rm.group(1))
+            em = re.search(r"(?:\bOpen3\.\w+|\bIO\.popen|\b(?:system|spawn|exec)|%%x\(|`)\s*\(?\s*(?:\"#\{\s*)?%s\b" % v,
+                           code[rm.end():rm.end() + 1500])
+            if em:
+                n = lines.line(rm.end() + em.start())
+                add("CRITICAL", "reverse_shell", "Remote Command Loop",
+                    "Reads commands from a socket and executes them", n, em.group(0)[:80],
+                    src_lines[n - 1] if n - 1 < len(src_lines) else "")
+                break
+    # host fingerprint sent to a raw-IP endpoint from early code: an install / load beacon
+    if early and has_net and has_rawip() and re.search(
+            r"Socket\.gethostname|\bEtc\.getlogin|ENV\s*\[\s*['\"](?:USER|USERNAME|LOGNAME)['\"]|`whoami`|ip_address_list", code):
+        add("HIGH", "host_beacon", "Host Fingerprint Beacon",
+            "Collects hostname / user / IP and sends it to a raw-IP endpoint from code that runs unasked")
+    # dropper: write a file (downloaded, or decoded from a literal) and run that same path
+    if "dropper" not in live:
+        for wm in WRITTEN_PATH_RE.finditer(code):
+            wp = wm.group(1)
+            if "#{" in wp or len(wp) < 4:
+                continue
+            rest = code[wm.end():wm.end() + 40000]
+            rm = re.search(r"(?:\b(?:system|spawn|exec)\s*\(?|Open3\.\w+\s*\(|IO\.popen\s*\(|`|%x\()[^\n]{0,120}"
+                           + re.escape(wp), rest)
+            if rm and (has_net or "decode64" in code or ".unpack" in code):
+                n = lines.line(wm.end() + rm.start())
+                add("HIGH", "dropper", "Write & Execute (dropper)",
+                    "Writes %s (%s) and then runs it" % (wp, "downloaded" if has_net else "decoded payload"), n,
+                    rm.group(0)[:120], src_lines[n - 1] if n - 1 < len(src_lines) else "")
+                break
+    if "dropper" not in {f["id"] for f in local} and not is_ruby:
+        dl = {m.group(1) for m in SH_DL_PATH_RE.finditer(code)}
+        for cm in SH_CHMOD_X_RE.finditer(code):
+            cp = cm.group(1)
+            ran = dl and re.search(r"(?m)^[ \t]*(?:nohup\s+|exec\s+)?(?:\S*/)?%s\b" % re.escape(posixpath.basename(cp)),
+                                   code[cm.end():])
+            if cp in dl or posixpath.basename(cp) in {posixpath.basename(d) for d in dl} or ran:
+                n = lines.line(cm.start())
+                add("HIGH", "dropper", "Download & Execute (dropper)",
+                    "Shell script downloads %s and marks it executable" % cm.group(1), n, cm.group(0),
+                    src_lines[n - 1] if n - 1 < len(src_lines) else "")
+                break
+
     # ---- context: escalate early code, cap code nothing runs -------------------------
     for f in local:
         if f["severity"] == "INFO":
@@ -765,7 +865,8 @@ def _scan_text(text, path, findings, info, ctx, gem_files=None):
         if c in ESCALATE and f["severity"] == "HIGH":
             f["severity"] = "CRITICAL"
             f["description"] += " [runs at %s]" % {"install": "gem install", "plugin": "every gem command",
-                                                     "gemspec": "bundle / gem build", "require": "require"}[c]
+                                                     "gemspec": "bundle / gem build", "require": "require",
+                                                     "shadow": "every use of the shadowed system command"}[c]
         elif c == "aux" and SEV_ORDER[f["severity"]] > SEV_ORDER["MEDIUM"]:
             f["severity"] = "MEDIUM"
             f["description"] += " [in a file nothing installs or loads]"
@@ -975,8 +1076,13 @@ def classify(path, meta, ctxmap):
     rps = [_norm(r) for r in (meta.get("require_paths") or ["lib"])]
     bindir = _norm(meta.get("bindir") or "bin")
     if path.startswith(bindir + "/") or path.startswith("exe/"):
+        execs = set(meta.get("executables") or []) or {base}
+        if base in SHADOW_NAMES and base in execs:
+            return "shadow"
         return "bin"
-    in_rp = any(path.startswith(rp + "/") for rp in rps if rp != ".")
+    # a require_paths entry naming a file (or a dir we can't see past) still puts that code on $LOAD_PATH
+    in_rp = any(path.startswith(rp + "/") or path == rp or (rp.endswith(".rb") and path.startswith(posixpath.dirname(rp) + "/"))
+                for rp in rps if rp != ".")
     if in_rp and path.endswith(".rb"):
         if re.search(r"/templates?/|/generators?/[^/]+/templates/|/skeleton/|/fixtures?/|/spec/|/test/", path):
             return "aux"
@@ -1013,6 +1119,12 @@ def scan_gem(files, meta=None, label="", install_only=False, heads=None):
                                    "Ships an executable (PE / ELF / Mach-O header) under a non-executable extension",
                                    p, 0, "", "file header"), ctx="data"))
     ctxmap = run_contexts(files, meta)
+    for p in files:
+        if classify(p, meta, ctxmap) == "shadow":
+            findings.append(dict(_item("HIGH", "command_shadowing", "System Command Shadowing",
+                                       "Installs an executable named `%s`: it runs in place of the system command "
+                                       "whenever a user types it" % posixpath.basename(p), p, 0, "", "gem executables"),
+                                 ctx="shadow"))
     total = 0
     order = sorted(files, key=lambda p: (p not in ctxmap, p))
     gf = {"__disguised__": disguised}
@@ -1028,6 +1140,15 @@ def scan_gem(files, meta=None, label="", install_only=False, heads=None):
                               path, 0, "", ""))
             break
         _scan_text(files[path], path, findings, info, c, gf)
+    # browser credential / cookie database read in one file, mailed or posted out from another
+    bdb = [p for p in files if classify(p, meta, ctxmap) not in (None, "aux") and BROWSER_DB_RE.search(files[p])]
+    if bdb:
+        out = [p for p in files if classify(p, meta, ctxmap) not in (None, "aux")
+               and (MAIL_EXFIL_RE.search(files[p]) or EXFIL_RE.search(files[p]))]
+        if out:
+            findings.append(dict(_item("CRITICAL", "browser_cred_exfil", "Browser Credential Theft",
+                                       "Reads a browser credential / cookie store (%s) and sends it out (%s)" % (bdb[0], out[0]),
+                                       bdb[0], 0, "", "cross-file combination"), ctx="runtime"))
     # an install-context reference to a disguised binary is the atlas-client shape
     for f in findings:
         if f["id"] == "disguised_binary" and any(g["id"] == "disguised_executable" and g.get("ctx") in EARLY

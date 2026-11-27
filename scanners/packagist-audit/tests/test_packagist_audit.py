@@ -22,6 +22,10 @@ EXPECT = {
     "mal-laravel-rat": ("CRITICAL", "c2_loop"),              # 2025 RAT in autoload.files helper.php
     "mal-plugin-dropper": ("CRITICAL", "dropper"),           # composer-plugin download -> chmod -> exec
     "mal-webshell": ("CRITICAL", "webshell"),                # classic @eval(base64_decode($_POST[..]))
+    "mal-plugin-bun-loader": ("CRITICAL", "obfuscated_js_payload"),  # 2026 intercom-php: plugin -> sh -> bun + obfuscated JS
+    # added after the held-out run (see RECALL.md)
+    "mal-autoload-chr-dropper": ("CRITICAL", "dropper"),     # 2026 Laravel-Lang: chr()-array host, temp .php run
+    "mal-webshell-var": ("CRITICAL", "webshell"),            # $cmd = $_POST[..]; shell_exec($cmd)
     # other shapes
     "mal-eval-packed": ("CRITICAL", "eval_decode"),
     "mal-plugin-curl-sh": ("CRITICAL", "download_execute"),

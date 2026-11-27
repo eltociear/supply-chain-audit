@@ -34,6 +34,15 @@ EXPECT = {
     "mal-hatch-hook": ("CRITICAL", "credential_exfil"),           # hatch custom build hook
     "mal-env-dump-import": ("CRITICAL", "env_exfil"),
     "mal-setup-imported-module": ("CRITICAL", "exfil_host"),     # module setup.py imports
+    # shapes from the DataDog malicious-packages recall benchmark (RECALL.md)
+    "mal-depconf-beacon": ("CRITICAL", "recon_beacon"),           # 99.x.x dependency-confusion probe
+    "mal-install-hook-network": ("CRITICAL", "install_hook_network"),
+    "mal-blankobf-import": ("CRITICAL", "obfuscated_exec"),       # BlankOBF escaped-eval prologue
+    "mal-pyz-dropper-import": ("CRITICAL", "dropper"),            # 2026 compromised releases: /tmp/*.pyz
+    "mal-b64-layer-import": ("CRITICAL", "env_exfil"),            # payload only visible after decoding
+    "mal-ps-hidden-setup": ("CRITICAL", "download_execute"),      # hidden PowerShell dropper
+    "mal-fetch-node-import": ("CRITICAL", "download_execute"),    # curl body -> node -e at import
+    "mal-embedded-exe-setup": ("CRITICAL", "embedded_executable"),
 }
 # a finding the canary must carry, with the execution context that escalated it
 RUNS_AT = {
@@ -149,3 +158,44 @@ class Units(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CliFixtures(unittest.TestCase):
+    """Every fixture directory through the real CLI (`python3 -I pypi_audit.py <dir> --json`), the
+    way a user or a canary-replay harness runs it, not through scan_distribution()."""
+
+    def cli(self, name):
+        import json
+        import subprocess
+        p = subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(HERE), "pypi_audit.py"),
+                            os.path.join(FIX, name), "--json"], capture_output=True, text=True, timeout=120)
+        r = json.loads(p.stdout)
+        self.assertEqual(p.returncode, 2 if pa.SEV_ORDER[r["risk_level"]] >= 3 else 0)
+        return r
+
+    def test_every_fixture_via_cli(self):
+        for name in sorted(os.listdir(FIX)):
+            with self.subTest(name):
+                r = self.cli(name)
+                got = [(f["id"], f["file"], f["severity"]) for f in r["findings"]]
+                if name.startswith("mal-"):
+                    want, rule = EXPECT[name]
+                    self.assertGreaterEqual(pa.SEV_ORDER[r["risk_level"]], pa.SEV_ORDER[want], got)
+                    self.assertIn(rule, {f["id"] for f in r["findings"]}, got)
+                elif name.startswith("med-"):
+                    self.assertEqual(r["risk_level"], "MEDIUM", got)
+                else:
+                    self.assertEqual(r["risk_level"], "SAFE", got)
+                # in-package paths survive: no finding loses its directory
+                for f in r["findings"] + r["info"]:
+                    rel = f["file"].split(":", 1)[-1].split("!", 1)[0]
+                    self.assertTrue(os.path.exists(os.path.join(FIX, name, "sdist" if f["file"].startswith("sdist:") else "wheel", rel))
+                                    or os.path.exists(os.path.join(FIX, name, rel)), f["file"])
+
+    def test_wrapper_dirs_stripped_to_dist_root_only(self):
+        setup = open(os.path.join(FIX, "mal-depconf-beacon", "sdist", "setup.py")).read()
+        r = pa.audit_tree({"dl/tmp123/pkg/pkg-1.0/setup.py": setup, "dl/tmp123/pkg/pkg-1.0/pkg/__init__.py": ""}, "x")
+        self.assertEqual(r["risk_level"], "CRITICAL")          # setup.py found at the sdist root
+        self.assertEqual(r["build_files"], ["sdist:setup.py"])
+        sd, wh = pa.classify_tree({"pkg/tests/t.py": "x = 1"})
+        self.assertEqual((sd, list(wh)), (None, ["pkg/tests/t.py"]))   # no dist root: paths kept

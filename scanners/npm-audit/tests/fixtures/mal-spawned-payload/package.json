@@ -1,0 +1,7 @@
+{
+  "name": "mal-spawned-payload",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node src/postinstall.js"
+  }
+}

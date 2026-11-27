@@ -26,6 +26,13 @@ EXPECT = {
     "mal-atlas-client-dropper": ("CRITICAL", ["disguised_executable", "disguised_binary", "install_runs_exe"]),
     "mal-clipboard-startup": ("CRITICAL", ["persistence_write", "clipboard_hijack"]),
     "mal-fastlane-telegram-proxy": ("CRITICAL", ["token_proxy", "token_exfil"]),
+    # wave 5: shapes from REAL artifacts the 0.1.0 rules missed (see RECALL.md)
+    "mal-bin-ls-shadow": ("CRITICAL", ["command_shadowing", "dropper"]),
+    "mal-rack-env-cookie": ("CRITICAL", ["request_eval"]),
+    "mal-extconf-write-run": ("CRITICAL", ["dropper"]),
+    # added after the held-out run (fixes for its misses; see RECALL.md)
+    "mal-extconf-encoded-exec": ("CRITICAL", ["encoded_exec"]),
+    "mal-socket-cmd-loop": ("CRITICAL", ["reverse_shell"]),
     # generic install / load-time shapes
     "mal-extconf-curl-sh": ("CRITICAL", ["download_execute"]),
     "mal-gemspec-exec": ("CRITICAL", ["download_execute"]),

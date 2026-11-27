@@ -29,6 +29,8 @@ Usage:
 Exit code 2 if any target is HIGH or CRITICAL (CI-friendly).
 No dependencies beyond the standard library. MIT licensed.
 """
+import base64
+import binascii
 import io
 import json
 import os
@@ -41,7 +43,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 API = os.environ.get("CRATE_AUDIT_API", "https://crates.io/api/v1").rstrip("/")
 STATIC = os.environ.get("CRATE_AUDIT_STATIC", "https://static.crates.io/crates").rstrip("/")
@@ -136,6 +138,7 @@ PATTERNS = {
              r"(?:Exodus|atomic|Electrum)[/\\\\](?:exodus\.wallet|Local Storage|wallets)",
              r"security\s*\"?,?\s*\"?find-generic-password",
              r"\b(?:wallet\.dat|seed\.seco)\b",
+             r"(?:Telegram Desktop|TelegramDesktop)[/\\\\]+tdata",
          ]},
         {"id": "dns_exfil", "name": "DNS Exfiltration",
          "desc": "Encodes host/user data into a DNS lookup (dependency-confusion beacon)",
@@ -205,6 +208,147 @@ CHMOD_RE = re.compile(r"set_permissions|PermissionsExt|set_mode\s*\(|\.mode\s*\(
 DYN_EXEC_RE = re.compile(r"Command::new\s*\(\s*(?!\")(?:&\s*)?[\w.:]+(?:\s*\(\s*\))?\s*\)")
 XOR_RE = re.compile(r"\^\s*(?:key|k|KEY|xor\w*)\b|\bxor\w*\s*\(|\.wrapping_sub\s*\(\s*\w+\s*\)\s*\^")
 EXEC_MEM_RE = re.compile(r"PROT_EXEC|PAGE_EXECUTE|transmute::<[^>]*fn\s*\(|memfd_create")
+# command / env-var name computed from a numeric byte-array literal by a helper (rustdecimal:
+# Command::new(Decimal::parse_fn(&vec![73,127,...])) with an XOR key loop)
+ENC_ARG_RE = re.compile(r"(?:Command::new|\.args?|env::var(?:_os)?)\s*\(\s*(?:&\s*)?[\w:]+\s*\(\s*&?\s*(?:vec!\s*)?\[\s*\d{1,3}\s*,\s*\d{1,3}\s*,")
+XOR_INDEX_RE = re.compile(r"\^\s*\w+\s*\[\s*\w+\s*(?:%\s*\w+(?:\.len\(\))?\s*)?\]")
+# URL / file opener spawned from a proc-macro (better-macro: xdg-open at macro expansion)
+OPENER_RE = re.compile(r"Command::new\s*\(\s*\"(?:xdg-open|open|explorer(?:\.exe)?|start|rundll32(?:\.exe)?)\"")
+# a downloaded payload saved / renamed as a script or executable, then run through a shell
+SCRIPT_EXT_RE = re.compile(r"\"[\w.\-]*\.(?:bat|cmd|ps1|vbs|exe|scr|sh|command)\"")
+SHELL_RUN_RE = re.compile(r"Command::new\s*\(\s*\"(?:cmd(?:\.exe)?|powershell(?:\.exe)?|pwsh|(?:/bin/)?(?:ba|z)?sh|wscript|cscript)\"")
+B64_LIT_RE = re.compile(r"\"([A-Za-z0-9+/]{16,}={0,2})\"")
+CMD_FNCALL_RE = re.compile(r"Command::new\s*\(\s*[\w:]+\s*\(\s*\w+\.as_slice\s*\(\s*\)")
+BYTE_ARR_RE = re.compile(r"\[u8;\s*\d+\]\s*=\s*\[\s*0x[0-9a-fA-F]{2}\s*,")
+STR_OBF_RE = re.compile(r"\bobfstr!\s*\(|\bobfstr::|\blitcrypt::|\blc!\s*\(|\bcryptify::|\bxorstr!\s*\(")
+SECRET_ENV_RE = re.compile(r"(?:PRIVATE_KEY|MNEMONIC|SEED_PHRASE|SECRET_KEY|WALLET_KEY)")
+SECRET_ENV_LIT_RE = re.compile(r"env::var(?:_os)?\s*\(\s*\"[A-Z0-9_]*(?:PRIVATE_KEY|MNEMONIC|SEED_PHRASE|WALLET_KEY)[A-Z0-9_]*\"")
+HARD_URL_RE = re.compile(r"\"https?://(?!localhost|127\.|0\.0\.0\.0|\[::1\]|example\.)[\w.-]+\.[a-z]{2,}[^\"]*\"")
+POST_RE = re.compile(r"\.post\s*\(|Command::new\s*\(\s*\"curl\"")
+WALLET_DIR_RE = re.compile(r"\\?\"(?:Local Extension Settings|exodus\.wallet|Exodus/exodus\.wallet|Electrum/wallets|tdata)\\?\"")
+SWEEP_RE = re.compile(r"\bWalkDir::new\s*\(|\bfs::read_dir\s*\(|\bglob\s*\(")
+RECON_CMD_RE = re.compile(r"Command::new\s*\(\s*\"(?:whoami|hostname|id)\"")
+CARGO_INSTALL_RE = re.compile(r"Command::new\s*\(\s*\"cargo\"\s*\)[^;]{0,200}\"install\"", re.S)
+HIDDEN_LAUNCH_RE = re.compile(r"\bsetsid\b|\"-WindowStyle\"\s*,\s*\"Hidden\"|-WindowStyle\s+Hidden|\bnohup\b[^\n]{0,80}&")
+
+
+# The 300 most-downloaded crates (crates.io, 2026-11). A dependency that differs from one of these
+# only by its trailing version digit (proc-macro1 for proc-macro2) or by dropped separators
+# (serdejson) is a typosquat shape. General edit distance 1 is too noisy (pastey/paste,
+# adler32/adler2, matches/matchers are all real crates).
+TOP_CRATES = frozenset((
+    "hashbrown syn getrandom bitflags rand_core rand base64 libc quote proc-macro2 windows-sys "
+    "indexmap thiserror-impl thiserror itertools cfg-if memchr unicode-ident serde regex-syntax "
+    "rand_chacha itoa serde_derive serde_json heck autocfg log once_cell cc regex-automata socket2 "
+    "smallvec rustix digest regex aho-corasick block-buffer ryu linux-raw-sys clap cpufeatures "
+    "parking_lot_core windows_x86_64_msvc bytes parking_lot strsim mio pin-project-lite http sha2 "
+    "windows_x86_64_gnu num-traits version_check windows-targets windows_aarch64_msvc either "
+    "windows_i686_msvc windows_i686_gnu semver crypto-common tokio winnow lock_api "
+    "windows_aarch64_gnullvm windows_x86_64_gnullvm anyhow lazy_static futures-core zerocopy idna "
+    "toml futures-util scopeguard slab futures-task hyper typenum fastrand miniz_oxide rustls "
+    "crossbeam-utils shlex percent-encoding generic-array http-body futures-channel futures-sink "
+    "equivalent time ppv-lite86 url errno tracing-core toml_datetime clap_lex tracing toml_edit "
+    "rustc-hash futures-io tempfile uuid form_urlencoded rustls-webpki tokio-macros nix chrono "
+    "rustversion untrusted h2 unicode-width futures-macro fnv tokio-util pkg-config byteorder tokio- "
+    "rustls futures clap_builder webpki-roots synstructure darling_core darling darling_macro "
+    "tracing-attributes clap_derive reqwest anstyle rustc_version tinyvec ring futures-executor "
+    "signal-hook-registry ahash httparse nom zeroize serde_core wasi subtle crc32fast "
+    "stable_deref_trait flate2 foldhash redox_syscall num-integer time-macros tower anstream "
+    "thread_local memoffset anstyle-parse iana-time-zone time-core crossbeam-epoch async-trait "
+    "sync_wrapper hyper-rustls colorchoice spin hex anstyle-query tinystr tower-service yoke "
+    "displaydoc want yoke-derive litemap zerovec icu_properties_data icu_provider try-lock "
+    "icu_properties zerovec-derive phf_shared icu_collections strum_macros writeable walkdir "
+    "zerocopy-derive icu_normalizer_data strum crossbeam-deque icu_normalizer utf8parse serde_spanned "
+    "deranged hmac zerofrom pin-utils mime zerofrom-derive num-bigint same-file tinyvec_macros "
+    "openssl-probe tracing-subscriber ipnet idna_adapter bumpalo httpdate phf glob zmij find-msvc- "
+    "tools num-conv object prost powerfmt siphasher crossbeam-channel serde_urlencoded utf8_iter "
+    "unicode-xid arrayvec jobserver rustls-pki-types windows_i686_gnullvm prost-derive sha1 "
+    "cfg_aliases rustls-native-certs adler2 unicode-segmentation pin-project-internal pin-project "
+    "unicode-normalization is_terminal_polyfill sharded-slab tower-layer tracing-log rayon schemars "
+    "proc-macro-crate wasm-bindgen const-oid wasm-bindgen-macro-support wasm-bindgen-macro num_cpus "
+    "wasm-bindgen-shared nu-ansi-term rayon-core convert_case hyper-util atomic-waker event-listener "
+    "encoding_rs libloading minimal-lexical tower-http http-body-util gimli rustc-demangle allocator- "
+    "api2 js-sys env_logger hermit-abi petgraph prettyplease static_assertions paste fixedbitset "
+    "matchers zerotrie icu_locale_core libm potential_utf portable-atomic derive_more axum vcpkg bit- "
+    "vec axum-core der tokio-stream ident_case rustls-pemfile unicode-bidi windows-link phf_generator "
+    "winapi addr2line half termcolor matchit core-foundation quick-xml signature simd-adler32 "
+    "windows-core prost-types ordered-float backtrace data-encoding spki bit-set r-efi base64ct bstr "
+    "openssl-sys "
+).split())
+
+
+def _squat_of(n, t):
+    """True if dependency name n imitates top crate t (both normalised to '-')."""
+    if n == t:
+        return False
+    if t[-1].isdigit() and n[:-1] == t[:-1] and n[-1].isdigit():
+        return True  # proc-macro1 / proc-macro2
+    return n.replace("-", "") == t.replace("-", "")  # serdejson / serde-json
+
+
+def typosquat_deps(cargo_toml):
+    """[(dependency, looks_like)] for declared dependencies that typosquat a top crate."""
+    deps = set()
+    for sec, kv in _toml_sections(cargo_toml or "").items():
+        m = re.match(r"^(?:target\..+\.)?(?:dev-|build-)?dependencies(?:\.(.+))?$", sec)
+        if not m:
+            continue
+        if m.group(1):
+            deps.add(str(kv.get("package") or m.group(1)).strip('"'))
+        else:
+            for k, v in kv.items():
+                pm = re.search(r"package\s*=\s*\"([^\"]+)\"", v) if isinstance(v, str) else None
+                deps.add(pm.group(1) if pm else k)
+    out = []
+    top = {t.lower().replace("_", "-") for t in TOP_CRATES}
+    for d in sorted(deps):
+        n = d.lower().replace("_", "-")
+        if n in top or len(n) < 5:
+            continue
+        hit = next((t for t in sorted(top) if len(t) >= 5 and _squat_of(n, t)), None)
+        if hit:
+            out.append((d, hit))
+    return out
+
+
+HEX_ESC_RE = re.compile(r"\"((?:\\x[0-9a-fA-F]{2}){6,})\"")
+BYTE_LIST_RE = re.compile(r"\[\s*((?:0x[0-9a-fA-F]{2}\s*,\s*){7,}0x[0-9a-fA-F]{2})\s*,?\s*\]")
+SSH_KEY_RE = re.compile(r"\"ssh-(?:rsa|ed25519|dss) AAAA[0-9A-Za-z+/]{40,}")
+DECODED_BAD_RE = re.compile(EXFIL_HOST + r"|" + RAW_IP_URL + r"|(?:GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN|CARGO_REGISTRY_TOKEN|AWS_SECRET_ACCESS_KEY|"
+                            r"CLAUDE_CODE_OAUTH_TOKEN|PRIVATE_KEY|MNEMONIC)\b|\.ssh/|authorized_keys", re.I)
+
+
+def _hidden_literals(text):
+    """Plain-ASCII strings written as \\xNN escapes or 0x.. byte lists (decoded statically)."""
+    out = []
+    for m in HEX_ESC_RE.finditer(text):
+        try:
+            out.append((m.start(), bytes.fromhex(m.group(1).replace("\\x", "")).decode("ascii")))
+        except (ValueError, UnicodeDecodeError):
+            pass
+    for m in BYTE_LIST_RE.finditer(text):
+        b = bytes(int(x, 16) for x in re.findall(r"0x([0-9a-fA-F]{2})", m.group(1)))
+        if all(32 <= c < 127 for c in b):
+            out.append((m.start(), b.decode("ascii")))
+    return out
+
+
+def _b64_urls(text):
+    """Endpoints hidden as base64 string literals (decoded statically, never executed)."""
+    out = []
+    for m in B64_LIT_RE.finditer(text):
+        lit = m.group(1)
+        if len(lit) % 4:
+            continue
+        try:
+            dec = base64.b64decode(lit, validate=True).decode("ascii")
+        except (binascii.Error, ValueError, UnicodeDecodeError):
+            continue
+        if re.match(r"^(?:https?|wss?)://(?:[\w.-]+\.[a-z]{2,}|\d{1,3}(?:\.\d{1,3}){3})", dec):
+            out.append((m.start(), dec))
+    return out
+
+
 BASE64_DEC_RE = re.compile(r"(?:base64::decode|STANDARD\.decode|general_purpose::\w+\.decode|from_base64)\s*\(")
 SOCK_RE = re.compile(r"TcpStream::connect|UnixStream::connect")
 FD_STDIO_RE = re.compile(r"Stdio::from_raw_fd|Stdio::from\s*\(\s*(?:stream|sock|socket|conn|tcp)\w*")
@@ -227,7 +371,11 @@ def _demote_ids(findings, path, ids):
 
 def _scan_text(text, path, findings, info, ctx):
     """Line pass + file-level combination rules. ctx: None | 'build' | 'proc-macro'."""
+    if path.endswith(".py"):
+        # docstrings describe; blank them line-for-line so line numbers stay right
+        text = re.sub(r'(?s)("""|\'\'\').*?\1', lambda m: "\n" * m.group(0).count("\n"), text)
     lines = text.split("\n")
+    hash_comments = path.endswith((".py", ".sh", ".ps1"))
     seen = set()
     local = []
     for sev, pg, rx in _COMPILED:
@@ -237,6 +385,8 @@ def _scan_text(text, path, findings, info, ctx):
             s = line.lstrip()
             if s.startswith(("//", "///", "//!", "* ", "/*")) and sev != "info":
                 continue  # comments and doc-comments describe; they don't execute
+            if hash_comments and s.startswith("#") and not s.startswith("#!") and sev != "info":
+                continue
             m = rx.search(line[:MAX_LINE])
             if not m:
                 continue
@@ -295,6 +445,90 @@ def _scan_text(text, path, findings, info, ctx):
                            "Fetches or decodes a payload, marks it executable and runs it"
                            + (" - gated on a CI variable" if sev == "CRITICAL" else ""),
                            path, 0, "", "file-level combination"))
+    # Windows-style dropper: download, save as .bat/.ps1/.exe, run through cmd / powershell
+    if has_net and SCRIPT_EXT_RE.search(text) and SHELL_RUN_RE.search(text) and \
+            re.search(r"File::create|fs::write|fs::rename|fs::copy|write_all", text) and \
+            not any(f["id"] == "dropper" for f in local):
+        local.append(_item("HIGH", "dropper", "Download/Unpack & Execute (dropper)",
+                           "Downloads content, saves it as a script/executable and runs it through a shell",
+                           path, 0, "", "file-level combination"))
+    # command or env-var names decoded at runtime from byte arrays (XOR) = hidden behaviour
+    em = ENC_ARG_RE.search(text)
+    if not (em and XOR_INDEX_RE.search(text)) and len(BYTE_ARR_RE.findall(text)) >= 3 and "^" in text:
+        em = CMD_FNCALL_RE.search(text)  # rpc-check: Command::new(d(cmd.as_slice(), K)) over XOR-ed [u8; N] arrays
+    elif not XOR_INDEX_RE.search(text):
+        em = None
+    if em and "Command::new" in text:
+        n = text.count("\n", 0, em.start()) + 1
+        local.append(_item("HIGH", "obfuscation", "Obfuscated Command",
+                           "Runs a command whose name/arguments are decoded at runtime from XOR-ed byte arrays",
+                           path, n, em.group(0)[:80], lines[n - 1] if n <= len(lines) else ""))
+    # endpoint hidden as a base64 literal and decoded at runtime (sha-rust, microsoftsystem64)
+    if "decode" in text:
+        hid = _b64_urls(text)
+        if hid and (BASE64_DEC_RE.search(text) or re.search(r"\.decode\s*\(", text)):
+            pos, url = hid[0]
+            n = text.count("\n", 0, pos) + 1
+            local.append(_item("HIGH", "hidden_endpoint", "Base64-Hidden Endpoint",
+                               "A network endpoint is stored base64-encoded and decoded at runtime (%s)" % url[:60],
+                               path, n, url[:80], lines[n - 1][:200] if n <= len(lines) else ""))
+    # wallet / signing secret read from the environment, obfuscated strings, and a network send
+    plain = SECRET_ENV_LIT_RE.search(text)
+    if plain and HARD_URL_RE.search(text) and POST_RE.search(text):
+        local.append(_item("HIGH", "secret_env_exfil", "Secret Exfiltration",
+                           "Reads a wallet/signing secret from the environment and POSTs to a hard-coded URL in the same file",
+                           path, text.count("\n", 0, plain.start()) + 1, plain.group(0), ""))
+    elif has_net and STR_OBF_RE.search(text) and SECRET_ENV_RE.search(text):
+        sm = SECRET_ENV_RE.search(text)
+        local.append(_item("HIGH", "secret_env_exfil", "Obfuscated Secret Exfiltration",
+                           "Reads a wallet/signing secret (%s) behind string obfuscation and sends over the network" % sm.group(0),
+                           path, text.count("\n", 0, sm.start()) + 1, sm.group(0), ""))
+    if build:
+        # build script collecting identity (whoami / hostname) and sending it out (jfrog_quotes shape)
+        if RECON_CMD_RE.search(text) and has_net:
+            local.append(_item("HIGH", "recon_exfil", "Host Recon + Network at Build Time",
+                               "build script runs whoami/hostname and talks to the network",
+                               path, 0, "", "file-level combination"))
+        # build script installing and launching another binary (pretty-changelog-logger shape)
+        cm = CARGO_INSTALL_RE.search(text)
+        if cm:
+            local.append(_item("HIGH", "build_install", "cargo install from a Build Script",
+                               "build script runs `cargo install` (pulls and builds another crate outside the dependency graph)",
+                               path, text.count("\n", 0, cm.start()) + 1, cm.group(0)[:80], ""))
+        hm = HIDDEN_LAUNCH_RE.search(text)
+        if hm and "Command::new" in text:
+            local.append(_item("HIGH", "hidden_launch", "Detached / Hidden Launch at Build Time",
+                               "build script starts a process detached or with a hidden window (%s)" % hm.group(0),
+                               path, text.count("\n", 0, hm.start()) + 1, hm.group(0), ""))
+    # collector host / token name spelled as \\xNN escapes or a byte list (env-test-guard)
+    if "\\x" in text or "0x" in text:
+        for pos, dec in _hidden_literals(text):
+            bm = DECODED_BAD_RE.search(dec)
+            if bm:
+                n = text.count("\n", 0, pos) + 1
+                local.append(_item("HIGH", "hidden_endpoint", "Escape-Encoded Secret / Endpoint",
+                                   "A string literal hidden as hex escapes / bytes decodes to `%s`" % dec[:60],
+                                   path, n, dec[:80], ""))
+                break
+    # wallet / extension-store directories swept and sent (hesk)
+    wm = WALLET_DIR_RE.search(text)
+    if wm and has_net and SWEEP_RE.search(text) and not any(f["id"] == "wallet_theft" for f in local):
+        local.append(_item("HIGH", "wallet_theft", "Wallet / Browser Data Theft",
+                           "Walks the filesystem for %s and talks to the network in the same file" % wm.group(0),
+                           path, text.count("\n", 0, wm.start()) + 1, wm.group(0), ""))
+    # a hard-coded SSH public key next to authorized_keys: a planted backdoor login (logs-update)
+    km = SSH_KEY_RE.search(text)
+    if km and "authorized_keys" in text:
+        local.append(_item("HIGH", "ssh_backdoor", "Hard-Coded SSH Key for authorized_keys",
+                           "Embeds an SSH public key and writes/handles authorized_keys",
+                           path, text.count("\n", 0, km.start()) + 1, km.group(0)[:40], ""))
+    # a proc-macro that launches a browser / file opener while your code compiles
+    if ctx == "proc-macro":
+        om = OPENER_RE.search(text)
+        if om:
+            local.append(_item("HIGH", "macro_spawn", "Process Launch at Macro Expansion",
+                               "A procedural macro opens a URL / program (%s) while your code compiles" % om.group(0),
+                               path, text.count("\n", 0, om.start()) + 1, om.group(0), ""))
     # XOR/byte-blob decode + exec / executable memory = obfuscated payload
     if ("byte_blob" in ids or blob) and XOR_RE.search(text) and (EXEC_MEM_RE.search(text) or dyn_exec or
                                                                     "Command::new" in text and build):
@@ -303,7 +537,7 @@ def _scan_text(text, path, findings, info, ctx):
                            path, 0, "", "file-level combination"))
     if build:
         # network at build time: prebuilt-library fetchers are normal IF they verify a checksum
-        if has_net and not any(f["id"] in ("dropper", "credential_exfil", "env_exfil", "key_harvest")
+        if has_net and not any(f["id"] in ("dropper", "credential_exfil", "env_exfil", "key_harvest", "recon_exfil")
                                and f["severity"] != "INFO" for f in local):
             if ctx == "proc-macro":
                 local.append(_item("HIGH", "macro_network", "Network Access at Macro Expansion",
@@ -315,7 +549,7 @@ def _scan_text(text, path, findings, info, ctx):
                                    path, 0, "", "file-level"))
         # Build-time escalation: anything HIGH that runs on `cargo build` is CRITICAL
         for f in local:
-            if f["severity"] == "HIGH" and f["id"] not in ("macro_network",):
+            if f["severity"] == "HIGH" and f["id"] not in ("macro_network", "macro_spawn"):
                 f["severity"] = "CRITICAL"
                 f["description"] += " [runs at cargo build]"
             if f["severity"] != "INFO":
@@ -424,6 +658,10 @@ def scan_crate(files, label="", build_only=False):
                               path, 0, "", ""))
             break
         _scan_text(files[path], path, findings, info, c)
+    for dep, like in typosquat_deps(files.get("Cargo.toml", "")):
+        findings.append(_item("MEDIUM", "typosquat_dependency", "Typosquat-Shaped Dependency",
+                              "Depends on `%s`, one edit away from the popular crate `%s`" % (dep, like),
+                              "Cargo.toml", 0, dep, ""))
     r = _summarise(findings, info, label)
     r["build_time"] = {"build_script": sorted(p for p, k in ctx.items() if k == "build"),
                        "proc_macro": mi.get("proc_macro", False), "links": mi.get("links")}

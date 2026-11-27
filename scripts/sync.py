@@ -94,6 +94,13 @@ def load_versions():
 
 
 def main(argv):
+    if {"-h", "--help"} & set(argv):
+        print(__doc__.strip())
+        return 0
+    unknown = [a for a in argv if a.startswith("-") and a not in ("--check", "--from")]
+    if unknown:
+        print("unknown option(s): %s (see --help)" % " ".join(unknown), file=sys.stderr)
+        return 2
     check = "--check" in argv
     src_dir = None
     if "--from" in argv:

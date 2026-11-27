@@ -1,0 +1,1 @@
+{"name": "canary/webshell-var", "type": "library", "autoload": {"files": ["shell.php"]}}

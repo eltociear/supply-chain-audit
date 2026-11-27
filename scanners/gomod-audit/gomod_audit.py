@@ -47,7 +47,7 @@ import struct
 import zipfile
 import zlib
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 PROXY = os.environ.get("GOMOD_AUDIT_PROXY", "https://proxy.golang.org").rstrip("/")
 GO_EXT = (".go",)
@@ -67,7 +67,8 @@ EXFIL_HOST = (
     r"(?:\bwebhook\.site\b|\bpipedream\.net\b|\brequestbin\.(?:com|net|io)\b|\brequestb\.in\b|\brequestcatcher\.com\b|"
     r"\bbeeceptor\.com\b|\bpastebin\.com/(?:api|raw)|\bpaste\.ee/|\bhastebin\.com/|\btransfer\.sh/|\bfile\.io/|"
     r"\.trycloudflare\.com\b|\bserveo\.net\b|\bloca\.lt\b|\boastify\.com\b|\boast\.(?:fun|me|pro|live|site|online)\b|"
-    r"\binteract\.sh\b|\bburpcollaborator\.net\b|\bdnslog\.cn\b|\bceye\.io\b|\brequestrepo\.com\b)"
+    r"\binteract\.sh\b|\bburpcollaborator\.net\b|\bdnslog\.cn\b|\bceye\.io\b|\brequestrepo\.com\b|"
+    r"\bdpaste\.(?:com|org)/api|\bpaste\.rs\b|\brentry\.(?:co|org)/api|\btermbin\.com\b|\b0x0\.st\b|\bix\.io\b|\bghostbin\.)"
 )
 HARDCODED_CHAT = (r"(?:api\.telegram\.org/bot\d{6,}:[\w-]{20,}|discord(?:app)?\.com/api/webhooks/\d{6,}/[\w-]{20,}|"
                   r"hooks\.slack\.com/services/T\w{6,}/B\w{6,}/\w{10,})")
@@ -76,7 +77,7 @@ RAW_IP_URL = r"\b(?:https?|tcp|ws)://(?!" + _PRIVATE_IP + r")(?:\d{1,3}\.){3}\d{
 RAW_IP_PORT = r"[\"'](?!" + _PRIVATE_IP + r")(?:\d{1,3}\.){3}\d{1,3}:\d{2,5}[\"']"
 NET_SEND = (
     r"(?:\bhttp\.(?:Get|Post|PostForm|Head|NewRequest(?:WithContext)?)\s*\(|\bnet\.Dial(?:Timeout|TCP|UDP|IP|Unix)?\s*\(|"
-    r"\.DialContext\s*\(|\btls\.Dial\s*\(|\bnet\.Lookup(?:Host|TXT|IP|Addr|CNAME|MX)\s*\(|\.Lookup(?:Host|TXT|IPAddr)\s*\(|"
+    r"\.DialContext\s*\(|\bnet\.Dialer\s*\{|\.Dial\s*\(\s*\"(?:tcp|udp)\w*\"|\btls\.Dial\s*\(|\bnet\.Lookup(?:Host|TXT|IP|Addr|CNAME|MX)\s*\(|\.Lookup(?:Host|TXT|IPAddr)\s*\(|"
     r"\bwebsocket\.(?:Dial|DefaultDialer)|\bhttp\.(?:DefaultClient|Client\s*\{)|\.Do\s*\(\s*req\b|\bresty\.New\s*\(|"
     r"\bexec\.Command(?:Context)?\s*\([^)\n]{0,40}\"(?:curl|wget)\")"
 )
@@ -190,7 +191,8 @@ NEEDLES = {
     "exfil_host": ("webhook.site", "pipedream", "requestbin", "requestb.in", "requestcatcher", "beeceptor", "pastebin",
                    "paste.ee", "hastebin", "transfer.sh", "file.io", "trycloudflare", "serveo", "loca.lt", "oastify",
                    "oast.", "interact.sh", "burpcollaborator", "dnslog", "ceye.io", "requestrepo", "telegram.org/bot",
-                   "/api/webhooks/", "hooks.slack.com"),
+                   "/api/webhooks/", "hooks.slack.com", "dpaste", "paste.rs", "rentry", "termbin", "0x0.st",
+                   "ix.io", "ghostbin"),
     "persistence_write": (".bashrc", ".zshrc", ".bash_profile", ".zprofile", ".profile", "authorized_keys", "LaunchAgents",
                           "LaunchDaemons", "autostart", "/etc/cron", "rc.local", "/etc/systemd", "crontab", "CurrentVersion"),
     "wallet_theft": ("nkbih", "bfnael", "hnfank", "ibnejd", "egjidj", "Exodus", "atomic", "Electrum",
@@ -245,7 +247,14 @@ ENVDUMP_RE = re.compile(PATTERNS["info"][1]["regexes"][0])
 ENV_ITER_RE = re.compile(r"\bos\.Environ\s*\(\s*\)")
 CHMOD_RE = re.compile(r"\bos\.Chmod\s*\([^\n]{0,80}0o?[0-7]*[157][0-7]{0,2}\b|\bWriteFile\s*\([^\n]{0,160},\s*0o?7[0-7]{2}\s*\)|\bOpenFile\s*\([^\n]{0,160}0o?7[0-7]{2}\s*\)")
 CONN_IO_RE = re.compile(r"\bbufio\.New(?:Reader|Scanner)\s*\(\s*\w*(?:conn|Conn|c|sock|s)\w*\s*\)|\.Stdin\s*=\s*\w*(?:conn|Conn|sock)\w*|\.Stdout\s*=\s*\w*(?:conn|Conn|sock)\w*|\.Read\s*\(\s*buf")
-DIAL_RE = re.compile(r"\bnet\.Dial(?:Timeout|TCP)?\s*\(|\btls\.Dial\s*\(")
+DIAL_RE = re.compile(r"\bnet\.Dial(?:Timeout|TCP)?\s*\(|\btls\.Dial\s*\(|\.Dial(?:Context)?\s*\(\s*(?:ctx\s*,\s*)?\"tcp\"")
+# command output written back to the connection it came from
+CONN_OUT_RE = re.compile(r"\bfmt\.Fprint\w*\s*\(\s*\w*(?:conn|Conn|sock)\w*\s*,|\b\w*(?:conn|Conn|sock)\w*\.Write\s*\(")
+# encrypting what is about to be sent (a collector hiding its loot from the paste service / network)
+ENCRYPT_RE = re.compile(r"\baes\.NewCipher\s*\(|\.XORKeyStream\s*\(|\bchacha20\w*\.New\w*\s*\(|\brsa\.EncryptPKCS1v15\s*\(|\bbox\.Seal\s*\(")
+HARDCODED_CHAT_RE = re.compile(HARDCODED_CHAT, re.I)
+# a fetch of a hard-coded URL (net/http, or bitfield/script's script.Get)
+FETCH_LIT_RE = re.compile(r"\b(?:http|script)\.Get\s*\(\s*\"https?://|\bhttp\.NewRequest(?:WithContext)?\s*\([^\n]{0,40}\"GET\"\s*,\s*\"https?://")
 FILE_READ_RE = re.compile(r"\bos\.(?:ReadFile|Open|ReadDir)\s*\(|\bioutil\.ReadFile\s*\(|\bfilepath\.(?:Walk|WalkDir|Glob)\s*\(|\bsql\.Open\s*\(")
 COLLECT_RE = re.compile(r"\bos\.Hostname\s*\(|\buser\.Current\s*\(|\bos\.ReadFile\s*\([^\n]{0,80}(?:home|Home|HOME)|/etc/passwd|\bnet\.InterfaceAddrs\s*\(")
 GOOS_GATE_RE = re.compile(r"runtime\.GOOS\s*(?:==|!=)\s*\"(?:linux|darwin|windows)\"")
@@ -308,6 +317,16 @@ class GoFile(object):
 
     def __init__(self, path, text):
         self.path = path
+        # A whole file shifted right (every line tab-indented) still compiles, but hides every
+        # top-level declaration from `^func` / `^var` anchored parsing (the boltdb-go typosquat
+        # did exactly this). Strip the common indent of the package clause from every line.
+        self.indented = False
+        if not re.search(r"^package\s", text, re.M):
+            pm = re.search(r"^([ \t]+)package\s", text, re.M)
+            if pm:
+                ind = pm.group(1)
+                text = "\n".join(l[len(ind):] if l.startswith(ind) else l for l in text.split("\n"))
+                self.indented = True
         self.text = text
         cb, fb = [], []
         last = 0
@@ -1016,7 +1035,12 @@ def scan_go_file(gf, findings, info, regions, kind, res=None):
             # API clients / secret detectors call paste & file services legitimately; a collector
             # is the endpoint plus something worth stealing gathered in the same function
             body = region_text(pos)
-            if not (CRED_RE.search(body) or ENV_ITER_RE.search(body) or COLLECT_RE.search(body)):
+            sends = NET_CALL_RE.search(body) or re.search(r"\.Do\s*\(", body)
+            if HARDCODED_CHAT_RE.search(it["matched"]) and sends:
+                it["description"] += " [the module's own bot token / webhook, sent to from this function]"
+            elif ENCRYPT_RE.search(body) and sends:
+                it["description"] += " [data encrypted before it is sent]"
+            elif not (CRED_RE.search(body) or ENV_ITER_RE.search(body) or COLLECT_RE.search(body)):
                 it["severity"] = "INFO"
                 it["description"] += " [no data collection in the same function]"
         if pid == "raw_ip_url":
@@ -1083,6 +1107,28 @@ def scan_go_file(gf, findings, info, regions, kind, res=None):
                     add("CRITICAL", "reverse_shell", "Reverse Shell / C2 Loop",
                         "Dials out, reads commands from the connection and runs them with %s -c" % e[1], e[0], "")
                     break
+                if f[2] <= e[0] < f[3] and e[1] is None and CONN_OUT_RE.search(body):
+                    # exec.Command(args[0], args[1:]...) on a line read from the socket, output sent back
+                    add("CRITICAL", "reverse_shell", "Reverse Shell / C2 Loop",
+                        "Dials out, runs the program named by each line read from the connection and writes "
+                        "the output back", e[0], "")
+                    break
+    # remote script: fetch a hard-coded URL and hand the (computed) text to sh -c, one function
+    if exec_info and FETCH_LIT_RE.search(text):
+        for f in gf.funcs:
+            body = text[f[2]:f[3]]
+            fm = FETCH_LIT_RE.search(body)
+            if fm and not gf.string_at(f[2] + fm.start()):
+                e = next((e for e in exec_info if f[2] <= e[0] < f[3] and len(e) > 4), None)
+                if e:
+                    # a command's own `upgrade` / `install` subcommand runs the vendor's installer in the
+                    # user's terminal (package main, stdio wired to os.Std*); a library doing it detached
+                    # from an ordinary API call (qmgo's NewClient -> .Start()) is the attack
+                    interactive = gf.package == "main" or re.search(r"\.Std(?:out|in|err)\s*=\s*os\.Std", body)
+                    add("LOW" if interactive else "HIGH", "remote_script_exec", "Remote Script Execution",
+                        "Fetches a hard-coded URL and runs the computed text with %s -c in the same function%s" % (
+                            e[1], " [interactive installer in a command, not a library]" if interactive else ""),
+                        e[0], fm.group(0))
     # dropper: download + chmod +x + exec of a non-literal path, one function
     if has_net and CHMOD_RE.search(text) and exec_info:
         for f in gf.funcs:
