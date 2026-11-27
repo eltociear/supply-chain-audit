@@ -405,7 +405,7 @@ def _mask_python(text):
     depth, logical, first = 0, [], None
     paren = 0
     try:
-        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+        for tok in _tokens(text):
             tt = tok.type
             if tt == tokenize.COMMENT:
                 spans.append((tok.start, tok.end))
@@ -513,6 +513,29 @@ PLACEHOLDER_ARG_RE = re.compile(r"(?:b64decode|b85decode|b32decode|decompress|un
                                 r"(?:\\?['\"])?\s*(?:\{\{?[\w.\[\]'\"]*\}?\}|%[sr]|%\(\w+\)[sr]|\$\{?\w+\}?)\s*(?:\\?['\"])?\s*[).]")
 
 
+# Python 3.12+ (PEP 701) tokenizes f-strings as FSTRING_START/MIDDLE/END (3.14 adds
+# TSTRING_* for t-strings) instead of one STRING token. Collapse each (possibly nested)
+# f-/t-string back into a single STRING token so string-context rules behave the same
+# on every Python version.
+_FSTR_START = {getattr(tokenize, n) for n in ("FSTRING_START", "TSTRING_START") if hasattr(tokenize, n)}
+_FSTR_END = {getattr(tokenize, n) for n in ("FSTRING_END", "TSTRING_END") if hasattr(tokenize, n)}
+
+
+def _tokens(text):
+    stack = []
+    for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+        if tok.type in _FSTR_START:
+            stack.append(tok)
+            continue
+        if stack:
+            if tok.type in _FSTR_END:
+                st = stack.pop()
+                if not stack:
+                    yield tokenize.TokenInfo(tokenize.STRING, "", st.start, tok.end, st.line)
+            continue
+        yield tok
+
+
 def _string_spans(text):
     """[(start, end)] character offsets of every string literal token (f-strings included)."""
     lines = text.splitlines(True)
@@ -521,7 +544,7 @@ def _string_spans(text):
         starts.append(starts[-1] + len(ln))
     out = []
     try:
-        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+        for tok in _tokens(text):
             if tok.type == tokenize.STRING:
                 out.append((starts[tok.start[0] - 1] + tok.start[1], starts[tok.end[0] - 1] + tok.end[1]))
     except (tokenize.TokenError, IndentationError, SyntaxError, ValueError):

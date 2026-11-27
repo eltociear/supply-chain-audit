@@ -32,6 +32,7 @@ No dependencies beyond the standard library. MIT licensed.
 """
 import io
 import json
+import posixpath
 import os
 import re
 import sys
@@ -484,7 +485,7 @@ def _lifecycle(pkg_json, files, findings, info):
                              "file": "package.json#scripts.%s" % hook, "line": 0,
                              "matched": cmd[:120], "context": cmd[:200]})
         for m in SCRIPT_FILE_RE.finditer(cmd):
-            p = os.path.normpath(m.group(1).replace("\\", "/")).lstrip("./")
+            p = posixpath.normpath(m.group(1).replace("\\", "/")).lstrip("./")
             run_files.add(p)
     # node-gyp runs automatically for any package with a binding.gyp and no install script;
     # `<!(node file.js)` command expansions in it execute at install time.
@@ -496,7 +497,7 @@ def _lifecycle(pkg_json, files, findings, info):
                          "description": "binding.gyp command expansion runs on npm install", "file": "binding.gyp",
                          "line": 0, "matched": cmd[:120], "context": cmd[:200]})
             for fm in SCRIPT_FILE_RE.finditer(" " + cmd):
-                p = os.path.normpath(fm.group(1).replace("\\", "/")).lstrip("./")
+                p = posixpath.normpath(fm.group(1).replace("\\", "/")).lstrip("./")
                 if p in files:
                     run_files.add(p)
                     findings.append({"severity": "MEDIUM", "id": "gyp_exec", "name": "binding.gyp Runs Package Code",
@@ -515,10 +516,10 @@ def _follow_refs(run_files, files, depth=2, cap=12):
             text = files.get(rf)
             if not text or len(text) > MAX_FILE:
                 continue
-            base = os.path.dirname(rf)
+            base = posixpath.dirname(rf)
             for m in REF_RE.finditer(text[:200000]):
                 ref = (m.group(1) or m.group(2)).replace("\\", "/")
-                for cand in (os.path.normpath(os.path.join(base, ref)), os.path.normpath(ref).lstrip("./")):
+                for cand in (posixpath.normpath(posixpath.join(base, ref)), posixpath.normpath(ref).lstrip("./")):
                     for c in (cand, cand + ".js", cand + "/index.js", cand + ".cjs", cand + ".mjs"):
                         if c in files and c not in out and c != "package.json":
                             nxt.add(c)

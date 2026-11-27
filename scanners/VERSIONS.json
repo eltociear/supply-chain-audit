@@ -91,10 +91,10 @@
   "npm-audit": {
    "repo": "eltociear/npm-audit",
    "url": "https://github.com/eltociear/npm-audit",
-   "commit": "3cd92b923e9f4878084a15f53e9fcb210fee0a4b",
+   "commit": "80f08775f2731f3826cc181781ad7c4d0f19e9a8",
    "script": "npm_audit.py",
-   "sha256": "ba0b0e8c249837df305133c643978c45c020bcbe8a79f5d86a694f8abe269642",
-   "synced_at": "2026-11-27T15:31:32Z"
+   "sha256": "943b1d73d9a98bd7fb8e645c20c717f4b64bdbf3a00fe02cdeee4db841e98a43",
+   "synced_at": "2026-11-27T15:37:33Z"
   },
   "nuget-audit": {
    "repo": "eltociear/nuget-audit",
@@ -123,10 +123,10 @@
   "pypi-audit": {
    "repo": "eltociear/pypi-audit",
    "url": "https://github.com/eltociear/pypi-audit",
-   "commit": "79b631ec06ea4b99a4c0c2df23421efa7e4ed22c",
+   "commit": "71db9166b5f9f7b45805b99553f8921ec3abb5c0",
    "script": "pypi_audit.py",
-   "sha256": "4dbc338ffa058263aecb55a96e0824d163978518f95258e27174fe7ae9610ac0",
-   "synced_at": "2026-11-27T15:31:39Z"
+   "sha256": "2dc8a4774714960b67801ca72f9446c78938f3496cb16ff34e15944380e4b2da",
+   "synced_at": "2026-11-27T15:37:34Z"
   },
   "repo-trust-audit": {
    "repo": "eltociear/repo-trust-audit",
@@ -193,5 +193,5 @@
    "synced_at": "2026-11-27T15:31:47Z"
   }
  },
- "synced_at": "2026-11-27T15:31:47Z"
+ "synced_at": "2026-11-27T15:37:34Z"
 }
