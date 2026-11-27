@@ -29,10 +29,32 @@ Zero dependencies, Python 3.9+, MIT. The scanners are vendored under [`scanners/
 at pinned upstream commits ([`scanners/VERSIONS.json`](scanners/VERSIONS.json)) and each runs
 in its own isolated `python -I` subprocess - `sca` never imports them.
 
-## Quick start
+## Install
+
+From a checkout (nothing to install, works today):
 
 ```sh
 git clone https://github.com/eltociear/supply-chain-audit && cd supply-chain-audit
+python3 sca.py --version
+```
+
+From PyPI, **after the first release** (the package name `supply-chain-audit` is not published
+yet; see [RELEASING.md](RELEASING.md)):
+
+```sh
+pipx install supply-chain-audit                   # puts `sca` on your PATH
+uvx --from supply-chain-audit sca scan .           # or run it once without installing
+pip install supply-chain-audit                     # into the current environment
+```
+
+The wheel is pure Python with zero dependencies and carries the same vendored scanners (under
+`sca_scanners/` in site-packages, found automatically; `SCA_SCANNER_DIR` overrides). The
+scanners' test trees (inert canaries) are not packaged; run the test suite from a checkout.
+With an installed `sca`, replace `python3 sca.py` with `sca` below.
+
+## Quick start
+
+```sh
 python3 sca.py scan ~/src/some-checkout          # detect + scan everything, human-readable
 python3 sca.py scan . --sarif -o sca.sarif       # SARIF for GitHub code scanning / any SARIF viewer
 python3 sca.py scan . --json --fail-on medium    # normalised JSON, exit 2 on MEDIUM or worse

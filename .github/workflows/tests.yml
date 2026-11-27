@@ -36,3 +36,53 @@ jobs:
 
       - name: Run offline test suite
         run: python -m unittest discover -s tests -v
+
+  package:
+    name: Wheel smoke test / Python ${{ matrix.python-version }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, python-version: "3.9" }
+          - { os: ubuntu-24.04, python-version: "3.14" }
+          - { os: windows-latest, python-version: "3.12" }
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build sdist and wheel
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --outdir dist
+          ls -l dist
+
+      - name: Check the archives (no scanner test trees, scanners present)
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob, tarfile, zipfile
+          whl, = glob.glob("dist/*.whl"); sd, = glob.glob("dist/*.tar.gz")
+          w = zipfile.ZipFile(whl).namelist(); s = tarfile.open(sd).getnames()
+          assert "sca.py" in w and "sca_scanners/VERSIONS.json" in w, w[:20]
+          assert sum(n.startswith("sca_scanners/") and n.endswith(".py") for n in w) == 24, "expected 24 scanners"
+          bad = [n for n in w + s if "/tests/" in n or n.endswith("/tests")]
+          assert not bad, bad[:10]
+          print("wheel %d files, sdist %d files, ok" % (len(w), len(s)))
+          PY
+
+      - name: Install the wheel into a fresh venv and smoke-test the installed sca
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/v"
+          if [ -x "$RUNNER_TEMP/v/bin/python" ]; then B="$RUNNER_TEMP/v/bin"; else B="$RUNNER_TEMP/v/Scripts"; fi
+          "$B/python" -m pip install dist/*.whl
+          python scripts/smoke_installed.py --sca "$B/sca" --python "$B/python"

@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "supply-chain-audit"
+dynamic = ["version"]
+description = "One zero-dependency CLI over 24 static supply-chain malware scanners (npm, PyPI, crates, Go, gems, Composer, GitHub Actions, VS Code, browser extensions, MCP, ...), with one JSON schema, SARIF 2.1.0 and CI exit codes."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "scanners/*/LICENSE"]
+requires-python = ">=3.9"
+authors = [{ name = "Ikko Eltociear Ashimine" }]
+keywords = ["supply-chain", "security", "malware", "sarif", "npm", "pypi", "github-actions", "static-analysis"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/eltociear/supply-chain-audit"
+Source = "https://github.com/eltociear/supply-chain-audit"
+Issues = "https://github.com/eltociear/supply-chain-audit/issues"
+Changelog = "https://github.com/eltociear/supply-chain-audit/blob/main/CHANGELOG.md"
+
+[project.scripts]
+sca = "sca:main"
+
+[tool.setuptools]
+py-modules = ["sca"]
+# The vendored scanners ship as package data of a data-only package, installed next to sca.py
+# as sca_scanners/; sca.py finds them there (or scanners/ in a checkout). The scanners' own
+# tests/ trees (inert canaries) are deliberately not packaged.
+packages = ["sca_scanners"]
+package-dir = { "sca_scanners" = "scanners" }
+include-package-data = false
+
+[tool.setuptools.package-data]
+sca_scanners = ["VERSIONS.json", "*/*.py", "*/LICENSE", "*/VENDORED.md"]
+
+[tool.setuptools.dynamic]
+version = { attr = "sca.__version__" }

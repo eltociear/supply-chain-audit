@@ -40,7 +40,22 @@ from concurrent.futures import ThreadPoolExecutor
 
 __version__ = "0.1.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCANNER_DIR = os.path.join(HERE, "scanners")
+
+
+def _scanner_dir():
+    """Where the vendored scanners live: $SCA_SCANNER_DIR, else scanners/ next to sca.py (a
+    checkout), else the sca_scanners/ package data next to it (pip / pipx / uvx install)."""
+    env = os.environ.get("SCA_SCANNER_DIR")
+    if env:
+        return env
+    for name in ("scanners", "sca_scanners"):
+        d = os.path.join(HERE, name)
+        if os.path.isfile(os.path.join(d, "VERSIONS.json")):
+            return d
+    return os.path.join(HERE, "scanners")
+
+
+SCANNER_DIR = _scanner_dir()
 SCHEMA_URL = "https://github.com/eltociear/supply-chain-audit/blob/main/schema/sca-report.schema.json"
 
 SEVERITIES = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]

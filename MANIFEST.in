@@ -1,0 +1,9 @@
+include LICENSE README.md CHANGELOG.md RELEASING.md sca.py
+include schema/sca-report.schema.json
+include scanners/VERSIONS.json
+recursive-include scanners *.py LICENSE VENDORED.md
+prune tests
+prune scanners/*/tests
+prune dist
+prune build
+global-exclude *.py[cod] __pycache__
